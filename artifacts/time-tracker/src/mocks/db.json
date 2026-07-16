@@ -1,0 +1,138 @@
+{
+  "_comment": "Dummy demo data for UI/UX work. Loaded only when the app runs in mock mode (pnpm dev:mock). Edit freely — shapes must match the real API. Time entries are generated at runtime from bookings (see mock-api.ts).",
+  "clients": [
+    { "id": 1, "name": "Client GmbH", "active": true, "notes": null, "createdAt": "2026-01-05T09:00:00.000Z" },
+    { "id": 2, "name": "Nordwind AG", "active": true, "notes": "Framework agreement until 2027", "createdAt": "2026-02-10T09:00:00.000Z" },
+    { "id": 3, "name": "Helios Labs", "active": true, "notes": null, "createdAt": "2026-04-01T09:00:00.000Z" },
+    { "id": 4, "name": "avanai (internal)", "active": true, "notes": "Internal, non-billable", "createdAt": "2026-01-05T09:00:00.000Z" },
+    { "id": 5, "name": "n8n GmbH", "active": true, "notes": "Budget-reconciliation demo project", "createdAt": "2026-01-20T09:00:00.000Z" }
+  ],
+  "employees": [
+    { "id": 1, "name": "Anna Berger", "email": "anna.berger@avanai.io", "weeklyCapacityHours": 40, "workingDaysMask": [1, 1, 1, 1, 1, 0, 0], "holidayCalendarCode": "DE", "contractStartDate": "2024-01-01", "contractEndDate": null, "utilizationTarget": 80, "personalAccessToken": "tok-anna-3f9a", "active": true, "createdAt": "2026-01-05T09:00:00.000Z" },
+    { "id": 2, "name": "Jonas Keller", "email": "jonas.keller@avanai.io", "weeklyCapacityHours": 40, "workingDaysMask": [1, 1, 1, 1, 1, 0, 0], "holidayCalendarCode": "DE", "contractStartDate": "2023-06-01", "contractEndDate": null, "utilizationTarget": 75, "personalAccessToken": "tok-jonas-8c21", "active": true, "createdAt": "2026-01-05T09:00:00.000Z" },
+    { "id": 3, "name": "Sara Nguyen", "email": "sara.nguyen@avanai.io", "weeklyCapacityHours": 40, "workingDaysMask": [1, 1, 1, 1, 1, 0, 0], "holidayCalendarCode": "DE", "contractStartDate": "2025-03-01", "contractEndDate": null, "utilizationTarget": 80, "personalAccessToken": "tok-sara-b44d", "active": true, "createdAt": "2026-01-05T09:00:00.000Z" },
+    { "id": 4, "name": "Malik Osei", "email": "malik.osei@avanai.io", "weeklyCapacityHours": 40, "workingDaysMask": [1, 1, 1, 1, 1, 0, 0], "holidayCalendarCode": "DE", "contractStartDate": "2024-09-01", "contractEndDate": null, "utilizationTarget": 85, "personalAccessToken": "tok-malik-71ee", "active": true, "createdAt": "2026-01-05T09:00:00.000Z" },
+    { "id": 5, "name": "Priya Shah", "email": "priya.shah@avanai.io", "weeklyCapacityHours": 40, "workingDaysMask": [1, 1, 1, 1, 1, 0, 0], "holidayCalendarCode": "DE", "contractStartDate": "2024-05-01", "contractEndDate": null, "utilizationTarget": 80, "personalAccessToken": "tok-priya-a90c", "active": true, "createdAt": "2026-01-05T09:00:00.000Z" },
+    { "id": 6, "name": "Lukas Weber", "email": "lukas.weber@avanai.io", "weeklyCapacityHours": 24, "workingDaysMask": [1, 1, 1, 0, 0, 0, 0], "holidayCalendarCode": "DE", "contractStartDate": "2025-10-01", "contractEndDate": "2026-12-31", "utilizationTarget": 70, "personalAccessToken": "tok-lukas-5d02", "active": true, "createdAt": "2026-01-05T09:00:00.000Z" },
+    { "id": 7, "name": "Eva Brandt", "email": "eva.brandt@avanai.io", "weeklyCapacityHours": 40, "workingDaysMask": [1, 1, 1, 1, 1, 0, 0], "holidayCalendarCode": "DE", "contractStartDate": "2023-01-01", "contractEndDate": "2026-03-31", "utilizationTarget": null, "personalAccessToken": "tok-eva-e310", "active": false, "createdAt": "2026-01-05T09:00:00.000Z" },
+    { "id": 8, "name": "Tobias Frank", "email": "tobias.frank@avanai.io", "weeklyCapacityHours": 40, "workingDaysMask": [1, 1, 1, 1, 1, 0, 0], "holidayCalendarCode": "DE", "contractStartDate": "2024-02-01", "contractEndDate": null, "utilizationTarget": 80, "personalAccessToken": "tok-tobias-91af", "active": true, "createdAt": "2026-01-20T09:00:00.000Z" },
+    { "id": 9, "name": "Mara Vogel", "email": "mara.vogel@avanai.io", "weeklyCapacityHours": 40, "workingDaysMask": [1, 1, 1, 1, 1, 0, 0], "holidayCalendarCode": "DE", "contractStartDate": "2024-06-01", "contractEndDate": null, "utilizationTarget": 80, "personalAccessToken": "tok-mara-27cd", "active": true, "createdAt": "2026-01-20T09:00:00.000Z" },
+    { "id": 10, "name": "Deniz Acar", "email": "deniz.acar@avanai.io", "weeklyCapacityHours": 40, "workingDaysMask": [1, 1, 1, 1, 1, 0, 0], "holidayCalendarCode": "DE", "contractStartDate": "2023-11-01", "contractEndDate": null, "utilizationTarget": 85, "personalAccessToken": "tok-deniz-b3e8", "active": true, "createdAt": "2026-01-20T09:00:00.000Z" }
+  ],
+  "projects": [
+    { "id": 1, "clientId": 1, "name": "Website Relaunch", "code": "CG-WEB", "active": true, "isBillable": true, "budgetHours": 840, "startDate": "2026-03-02", "endDate": "2026-10-30", "color": "#3B6FE0", "pmName": "Sumanth Gurram", "generalStatus": "in_progress", "budgetStatus": "on_track", "riskLevel": "low", "clientSatisfaction": "happy", "nextSteps": [ { "id": "ns-1", "text": "Confirm phase 2 scope with client", "done": true }, { "id": "ns-2", "text": "Schedule performance audit", "done": false }, { "id": "ns-3", "text": "Prepare go-live checklist", "done": false } ], "createdAt": "2026-02-20T09:00:00.000Z" },
+    { "id": 2, "clientId": 2, "name": "Platform Migration", "code": "NW-MIG", "active": true, "isBillable": true, "budgetHours": 720, "startDate": "2026-05-04", "endDate": "2026-12-18", "color": "#A24FD6", "pmName": "Lena Fischer", "generalStatus": "in_progress", "budgetStatus": "at_risk", "riskLevel": "high", "clientSatisfaction": "neutral", "nextSteps": [ { "id": "ns-4", "text": "Escalate staging environment blockers", "done": false } ], "createdAt": "2026-04-15T09:00:00.000Z" },
+    { "id": 3, "clientId": 3, "name": "Mobile App MVP", "code": "HL-APP", "active": true, "isBillable": true, "budgetHours": 424, "startDate": "2026-06-01", "endDate": "2026-09-30", "color": "#2E9E6D", "pmName": "Sumanth Gurram", "generalStatus": "in_progress", "budgetStatus": "on_track", "riskLevel": "medium", "clientSatisfaction": "happy", "nextSteps": null, "createdAt": "2026-05-20T09:00:00.000Z" },
+    { "id": 4, "clientId": 2, "name": "Data Warehouse", "code": "NW-DWH", "active": true, "isBillable": true, "budgetHours": 240, "startDate": "2026-06-15", "endDate": "2026-11-27", "color": "#E8A33D", "pmName": "Lena Fischer", "generalStatus": "on_hold", "budgetStatus": "on_track", "riskLevel": "low", "clientSatisfaction": null, "nextSteps": null, "createdAt": "2026-06-01T09:00:00.000Z" },
+    { "id": 5, "clientId": 4, "name": "Internal Tooling", "code": "AV-INT", "active": true, "isBillable": false, "budgetHours": null, "startDate": "2026-01-05", "endDate": null, "color": "#8A93A3", "pmName": null, "generalStatus": "in_progress", "budgetStatus": null, "riskLevel": "low", "clientSatisfaction": null, "nextSteps": null, "createdAt": "2026-01-05T09:00:00.000Z" },
+    { "id": 6, "clientId": 1, "name": "Design System", "code": "CG-DS", "active": true, "isBillable": true, "budgetHours": 176, "startDate": "2026-07-20", "endDate": "2026-09-11", "color": "#E5484D", "pmName": "Priya Shah", "generalStatus": "planned", "budgetStatus": "on_track", "riskLevel": "low", "clientSatisfaction": null, "nextSteps": null, "createdAt": "2026-06-25T09:00:00.000Z" },
+    { "id": 7, "clientId": 5, "name": "n8n Extension", "code": "N8N-EXT", "active": true, "isBillable": true, "budgetHours": 1344, "startDate": "2026-02-02", "endDate": "2026-12-18", "color": "#7857F2", "pmName": "Willi Wendt", "generalStatus": "in_progress", "budgetStatus": "at_risk", "riskLevel": "medium", "clientSatisfaction": "happy", "nextSteps": null, "createdAt": "2026-01-20T09:00:00.000Z" }
+  ],
+  "projectRoles": [
+    { "id": 1, "projectId": 1, "name": "Consultant", "dayRate": 960, "budgetedDays": 45, "budgetedHours": null, "createdAt": "2026-02-20T09:00:00.000Z", "updatedAt": "2026-02-20T09:00:00.000Z" },
+    { "id": 2, "projectId": 1, "name": "DevOps Engineer", "dayRate": 1040, "budgetedDays": 25, "budgetedHours": null, "createdAt": "2026-02-20T09:00:00.000Z", "updatedAt": "2026-02-20T09:00:00.000Z" },
+    { "id": 3, "projectId": 1, "name": "Engineering Manager", "dayRate": 1200, "budgetedDays": 20, "budgetedHours": null, "createdAt": "2026-02-20T09:00:00.000Z", "updatedAt": "2026-02-20T09:00:00.000Z" },
+    { "id": 4, "projectId": 2, "name": "Cloud Architect", "dayRate": 1150, "budgetedDays": 40, "budgetedHours": null, "createdAt": "2026-04-15T09:00:00.000Z", "updatedAt": "2026-04-15T09:00:00.000Z" },
+    { "id": 5, "projectId": 2, "name": "Automation Lead", "dayRate": 1000, "budgetedDays": 30, "budgetedHours": null, "createdAt": "2026-04-15T09:00:00.000Z", "updatedAt": "2026-04-15T09:00:00.000Z" },
+    { "id": 6, "projectId": 2, "name": "QA Lead", "dayRate": 880, "budgetedDays": 20, "budgetedHours": null, "createdAt": "2026-04-15T09:00:00.000Z", "updatedAt": "2026-04-15T09:00:00.000Z" },
+    { "id": 7, "projectId": 3, "name": "Mobile Engineer", "dayRate": 950, "budgetedDays": 35, "budgetedHours": null, "createdAt": "2026-05-20T09:00:00.000Z", "updatedAt": "2026-05-20T09:00:00.000Z" },
+    { "id": 8, "projectId": 3, "name": "Product Designer", "dayRate": 900, "budgetedDays": 18, "budgetedHours": null, "createdAt": "2026-05-20T09:00:00.000Z", "updatedAt": "2026-05-20T09:00:00.000Z" },
+    { "id": 9, "projectId": 4, "name": "Data Engineer", "dayRate": 1000, "budgetedDays": 30, "budgetedHours": null, "createdAt": "2026-06-01T09:00:00.000Z", "updatedAt": "2026-06-01T09:00:00.000Z" },
+    { "id": 10, "projectId": 5, "name": "Developer", "dayRate": 0, "budgetedDays": null, "budgetedHours": null, "createdAt": "2026-01-05T09:00:00.000Z", "updatedAt": "2026-01-05T09:00:00.000Z" },
+    { "id": 11, "projectId": 6, "name": "Design Lead", "dayRate": 980, "budgetedDays": 22, "budgetedHours": null, "createdAt": "2026-06-25T09:00:00.000Z", "updatedAt": "2026-06-25T09:00:00.000Z" },
+    { "id": 12, "projectId": 7, "name": "Implementation Manager", "dayRate": 1256, "budgetedDays": 50, "budgetedHours": null, "createdAt": "2026-01-20T09:00:00.000Z", "updatedAt": "2026-01-20T09:00:00.000Z" },
+    { "id": 13, "projectId": 7, "name": "Engineering Manager – Platform & Integrations", "dayRate": 1357, "budgetedDays": 47, "budgetedHours": null, "createdAt": "2026-01-20T09:00:00.000Z", "updatedAt": "2026-01-20T09:00:00.000Z" },
+    { "id": 14, "projectId": 7, "name": "DevOps Engineer", "dayRate": 1005, "budgetedDays": 71, "budgetedHours": null, "createdAt": "2026-01-20T09:00:00.000Z", "updatedAt": "2026-01-20T09:00:00.000Z" }
+  ],
+  "roleAssignments": [
+    { "roleId": 1, "employeeId": 5 },
+    { "roleId": 1, "employeeId": 3 },
+    { "roleId": 2, "employeeId": 1 },
+    { "roleId": 3, "employeeId": 2 },
+    { "roleId": 4, "employeeId": 1 },
+    { "roleId": 5, "employeeId": 4 },
+    { "roleId": 6, "employeeId": 5 },
+    { "roleId": 7, "employeeId": 3 },
+    { "roleId": 7, "employeeId": 6 },
+    { "roleId": 8, "employeeId": 5 },
+    { "roleId": 9, "employeeId": 4 },
+    { "roleId": 10, "employeeId": 2 },
+    { "roleId": 10, "employeeId": 6 },
+    { "roleId": 11, "employeeId": 5 },
+    { "roleId": 12, "employeeId": 8 },
+    { "roleId": 13, "employeeId": 9 },
+    { "roleId": 14, "employeeId": 10 }
+  ],
+  "resourceBookings": [
+    { "id": 1, "employeeId": 1, "projectId": 1, "projectRoleId": 2, "startDate": "2026-07-06", "endDate": "2026-07-10", "hoursPerDay": 8, "weekdayHours": null, "notes": "Infra hardening sprint", "status": "confirmed", "pastReleasedAt": null, "createdAt": "2026-06-20T10:00:00.000Z", "updatedAt": "2026-06-20T10:00:00.000Z" },
+    { "id": 2, "employeeId": 1, "projectId": 2, "projectRoleId": 4, "startDate": "2026-07-13", "endDate": "2026-07-17", "hoursPerDay": 8, "weekdayHours": null, "notes": null, "status": "confirmed", "pastReleasedAt": null, "createdAt": "2026-06-22T10:00:00.000Z", "updatedAt": "2026-06-22T10:00:00.000Z" },
+    { "id": 3, "employeeId": 2, "projectId": 1, "projectRoleId": 3, "startDate": "2026-07-06", "endDate": "2026-07-08", "hoursPerDay": 6, "weekdayHours": null, "notes": null, "status": "confirmed", "pastReleasedAt": null, "createdAt": "2026-06-20T10:00:00.000Z", "updatedAt": "2026-06-20T10:00:00.000Z" },
+    { "id": 4, "employeeId": 2, "projectId": 1, "projectRoleId": 3, "startDate": "2026-07-14", "endDate": "2026-07-17", "hoursPerDay": 8, "weekdayHours": null, "notes": null, "status": "confirmed", "pastReleasedAt": null, "createdAt": "2026-06-20T10:00:00.000Z", "updatedAt": "2026-06-20T10:00:00.000Z" },
+    { "id": 5, "employeeId": 4, "projectId": 2, "projectRoleId": 5, "startDate": "2026-07-07", "endDate": "2026-07-10", "hoursPerDay": 9, "weekdayHours": null, "notes": "Cutover prep — intentionally overbooked", "status": "confirmed", "pastReleasedAt": null, "createdAt": "2026-06-25T10:00:00.000Z", "updatedAt": "2026-06-25T10:00:00.000Z" },
+    { "id": 6, "employeeId": 4, "projectId": 2, "projectRoleId": 5, "startDate": "2026-07-13", "endDate": "2026-07-17", "hoursPerDay": 8, "weekdayHours": null, "notes": null, "status": "confirmed", "pastReleasedAt": null, "createdAt": "2026-06-25T10:00:00.000Z", "updatedAt": "2026-06-25T10:00:00.000Z" },
+    { "id": 7, "employeeId": 5, "projectId": 1, "projectRoleId": 1, "startDate": "2026-07-06", "endDate": "2026-07-06", "hoursPerDay": 4, "weekdayHours": null, "notes": null, "status": "confirmed", "pastReleasedAt": null, "createdAt": "2026-06-26T10:00:00.000Z", "updatedAt": "2026-06-26T10:00:00.000Z" },
+    { "id": 8, "employeeId": 5, "projectId": 1, "projectRoleId": 1, "startDate": "2026-07-07", "endDate": "2026-07-09", "hoursPerDay": 4, "weekdayHours": null, "notes": null, "status": "confirmed", "pastReleasedAt": null, "createdAt": "2026-06-26T10:00:00.000Z", "updatedAt": "2026-06-26T10:00:00.000Z" },
+    { "id": 9, "employeeId": 5, "projectId": 2, "projectRoleId": 6, "startDate": "2026-07-07", "endDate": "2026-07-09", "hoursPerDay": 4, "weekdayHours": null, "notes": null, "status": "confirmed", "pastReleasedAt": null, "createdAt": "2026-06-26T10:00:00.000Z", "updatedAt": "2026-06-26T10:00:00.000Z" },
+    { "id": 10, "employeeId": 5, "projectId": 3, "projectRoleId": 8, "startDate": "2026-07-09", "endDate": "2026-07-09", "hoursPerDay": 2, "weekdayHours": null, "notes": "Design review — third concurrent booking", "status": "tentative", "pastReleasedAt": null, "createdAt": "2026-07-01T10:00:00.000Z", "updatedAt": "2026-07-01T10:00:00.000Z" },
+    { "id": 11, "employeeId": 5, "projectId": 6, "projectRoleId": 11, "startDate": "2026-07-20", "endDate": "2026-07-24", "hoursPerDay": 8, "weekdayHours": null, "notes": "Design system kickoff", "status": "confirmed", "pastReleasedAt": null, "createdAt": "2026-07-01T10:00:00.000Z", "updatedAt": "2026-07-01T10:00:00.000Z" },
+    { "id": 12, "employeeId": 3, "projectId": 1, "projectRoleId": 1, "startDate": "2026-06-01", "endDate": "2026-06-26", "hoursPerDay": 8, "weekdayHours": null, "notes": null, "status": "confirmed", "pastReleasedAt": null, "createdAt": "2026-05-20T10:00:00.000Z", "updatedAt": "2026-05-20T10:00:00.000Z" },
+    { "id": 13, "employeeId": 6, "projectId": 3, "projectRoleId": 7, "startDate": "2026-07-06", "endDate": "2026-07-28", "hoursPerDay": 8, "weekdayHours": { "1": 8, "2": 8, "3": 8 }, "notes": "Part-time Mon–Wed", "status": "confirmed", "pastReleasedAt": null, "createdAt": "2026-06-28T10:00:00.000Z", "updatedAt": "2026-06-28T10:00:00.000Z" },
+    { "id": 14, "employeeId": 1, "projectId": 1, "projectRoleId": 2, "startDate": "2026-06-08", "endDate": "2026-06-19", "hoursPerDay": 8, "weekdayHours": null, "notes": null, "status": "confirmed", "pastReleasedAt": null, "createdAt": "2026-05-25T10:00:00.000Z", "updatedAt": "2026-05-25T10:00:00.000Z" },
+    { "id": 15, "employeeId": 2, "projectId": 1, "projectRoleId": 3, "startDate": "2026-06-01", "endDate": "2026-06-30", "hoursPerDay": 4, "weekdayHours": null, "notes": null, "status": "confirmed", "pastReleasedAt": null, "createdAt": "2026-05-20T10:00:00.000Z", "updatedAt": "2026-05-20T10:00:00.000Z" },
+    { "id": 16, "employeeId": 4, "projectId": 4, "projectRoleId": 9, "startDate": "2026-06-15", "endDate": "2026-06-26", "hoursPerDay": 8, "weekdayHours": null, "notes": null, "status": "confirmed", "pastReleasedAt": null, "createdAt": "2026-06-01T10:00:00.000Z", "updatedAt": "2026-06-01T10:00:00.000Z" },
+    { "id": 17, "employeeId": 3, "projectId": 3, "projectRoleId": 7, "startDate": "2026-07-27", "endDate": "2026-08-07", "hoursPerDay": 8, "weekdayHours": null, "notes": "Pending client confirmation", "status": "tentative", "pastReleasedAt": null, "createdAt": "2026-07-05T10:00:00.000Z", "updatedAt": "2026-07-05T10:00:00.000Z" },
+    { "id": 18, "employeeId": 4, "projectId": 4, "projectRoleId": 9, "startDate": "2026-08-03", "endDate": "2026-08-14", "hoursPerDay": 8, "weekdayHours": null, "notes": null, "status": "confirmed", "pastReleasedAt": null, "createdAt": "2026-07-05T10:00:00.000Z", "updatedAt": "2026-07-05T10:00:00.000Z" },
+    { "id": 19, "employeeId": 1, "projectId": 2, "projectRoleId": 4, "startDate": "2026-09-01", "endDate": "2026-11-27", "hoursPerDay": 8, "weekdayHours": null, "notes": "Migration phase 2 — long engagement", "status": "confirmed", "pastReleasedAt": null, "createdAt": "2026-07-08T10:00:00.000Z", "updatedAt": "2026-07-08T10:00:00.000Z" },
+    { "id": 20, "employeeId": 8, "projectId": 7, "projectRoleId": 12, "startDate": "2026-06-15", "endDate": "2026-06-19", "hoursPerDay": 8, "weekdayHours": null, "notes": "Stale plan — work was actually delivered earlier, never released", "status": "confirmed", "pastReleasedAt": null, "skipAutoLog": true, "createdAt": "2026-05-30T10:00:00.000Z", "updatedAt": "2026-05-30T10:00:00.000Z" },
+    { "id": 21, "employeeId": 8, "projectId": 7, "projectRoleId": 12, "startDate": "2026-06-22", "endDate": "2026-06-22", "hoursPerDay": 4, "weekdayHours": null, "notes": "Stale plan — half day, never delivered", "status": "confirmed", "pastReleasedAt": null, "skipAutoLog": true, "createdAt": "2026-05-30T10:00:00.000Z", "updatedAt": "2026-05-30T10:00:00.000Z" },
+    { "id": 22, "employeeId": 9, "projectId": 7, "projectRoleId": 13, "startDate": "2026-07-13", "endDate": "2026-07-14", "hoursPerDay": 8, "weekdayHours": null, "notes": "Committed future work", "status": "confirmed", "pastReleasedAt": null, "skipAutoLog": true, "createdAt": "2026-07-01T10:00:00.000Z", "updatedAt": "2026-07-01T10:00:00.000Z" },
+    { "id": 23, "employeeId": 8, "projectId": 7, "projectRoleId": 12, "startDate": "2026-06-29", "endDate": "2026-07-08", "hoursPerDay": 8, "weekdayHours": null, "notes": "Released Jul 6 (writes off Jun 29–Jul 3) — Jul 6–8 missed AFTER the release and must resurface as stale", "status": "confirmed", "pastReleasedAt": "2026-07-06T09:00:00.000Z", "skipAutoLog": true, "createdAt": "2026-06-20T10:00:00.000Z", "updatedAt": "2026-07-06T09:00:00.000Z" }
+  ],
+  "manualTimeEntries": [
+    { "employeeId": 8, "projectId": 7, "projectRoleId": 12, "startDate": "2026-03-02", "endDate": "2026-05-05", "hoursPerDay": 8, "billingStatus": "invoiced", "invoiceReference": "N8N-2026-003" },
+    { "employeeId": 8, "projectId": 7, "projectRoleId": 12, "startDate": "2026-05-06", "endDate": "2026-05-06", "hoursPerDay": 3.2, "billingStatus": "invoiced", "invoiceReference": "N8N-2026-003" },
+    { "employeeId": 8, "projectId": 7, "projectRoleId": 12, "startDate": "2026-05-07", "endDate": "2026-05-08", "hoursPerDay": 8, "billingStatus": null, "invoiceReference": null },
+    { "employeeId": 9, "projectId": 7, "projectRoleId": 13, "startDate": "2026-04-01", "endDate": "2026-05-08", "hoursPerDay": 8, "billingStatus": "invoiced", "invoiceReference": "N8N-2026-004" },
+    { "employeeId": 9, "projectId": 7, "projectRoleId": 13, "startDate": "2026-05-11", "endDate": "2026-05-11", "hoursPerDay": 1.6, "billingStatus": "invoiced", "invoiceReference": "N8N-2026-004" },
+    { "employeeId": 10, "projectId": 7, "projectRoleId": 14, "startDate": "2026-02-03", "endDate": "2026-04-14", "hoursPerDay": 8, "billingStatus": "invoiced", "invoiceReference": "N8N-2026-002" },
+    { "employeeId": 10, "projectId": 7, "projectRoleId": 14, "startDate": "2026-04-15", "endDate": "2026-05-15", "hoursPerDay": 8, "billingStatus": null, "invoiceReference": null }
+  ],
+  "vacations": [
+    { "id": 1, "employeeId": 2, "startDate": "2026-07-09", "endDate": "2026-07-10", "vacationType": "vacation", "note": "Long weekend", "createdAt": "2026-06-15T09:00:00.000Z" },
+    { "id": 2, "employeeId": 4, "startDate": "2026-07-06", "endDate": "2026-07-06", "vacationType": "sick", "note": null, "createdAt": "2026-07-06T07:30:00.000Z" },
+    { "id": 3, "employeeId": 3, "startDate": "2026-07-13", "endDate": "2026-07-17", "vacationType": "vacation", "note": "Summer break", "createdAt": "2026-06-01T09:00:00.000Z" },
+    { "id": 4, "employeeId": 1, "startDate": "2026-08-17", "endDate": "2026-08-28", "vacationType": "vacation", "note": null, "createdAt": "2026-06-20T09:00:00.000Z" },
+    { "id": 5, "employeeId": 6, "startDate": "2026-07-14", "endDate": "2026-07-14", "vacationType": "unpaid_leave", "note": null, "createdAt": "2026-07-01T09:00:00.000Z" },
+    { "id": 6, "employeeId": 1, "startDate": "2026-10-12", "endDate": "2026-10-16", "vacationType": "vacation", "note": "Autumn break (inside long booking)", "createdAt": "2026-07-08T09:00:00.000Z" }
+  ],
+  "holidayCalendars": [
+    { "id": 1, "code": "DE", "name": "Germany (national)", "createdAt": "2026-01-05T09:00:00.000Z" }
+  ],
+  "holidays": [
+    { "id": 1, "calendarId": 1, "date": "2026-01-01", "name": "New Year's Day" },
+    { "id": 2, "calendarId": 1, "date": "2026-04-03", "name": "Good Friday" },
+    { "id": 3, "calendarId": 1, "date": "2026-04-06", "name": "Easter Monday" },
+    { "id": 4, "calendarId": 1, "date": "2026-05-01", "name": "Labour Day" },
+    { "id": 5, "calendarId": 1, "date": "2026-05-14", "name": "Ascension Day" },
+    { "id": 6, "calendarId": 1, "date": "2026-05-25", "name": "Whit Monday" },
+    { "id": 7, "calendarId": 1, "date": "2026-10-03", "name": "German Unity Day" },
+    { "id": 8, "calendarId": 1, "date": "2026-12-25", "name": "Christmas Day" },
+    { "id": 9, "calendarId": 1, "date": "2026-12-26", "name": "Boxing Day" }
+  ],
+  "healthUpdates": [
+    { "id": 1, "projectId": 1, "generalStatus": "in_progress", "budgetStatus": "on_track", "riskLevel": "low", "clientSatisfaction": "happy", "comment": "Client confirmed scope for phase 2. Team velocity stable.", "createdAt": "2026-07-03T14:20:00.000Z" },
+    { "id": 2, "projectId": 1, "generalStatus": "in_progress", "budgetStatus": "on_track", "riskLevel": "low", "clientSatisfaction": "happy", "comment": null, "createdAt": "2026-06-19T10:00:00.000Z" },
+    { "id": 3, "projectId": 2, "generalStatus": "in_progress", "budgetStatus": "at_risk", "riskLevel": "high", "clientSatisfaction": "neutral", "comment": "Staging environment still blocked by client IT. Timeline slipping.", "createdAt": "2026-07-06T16:45:00.000Z" },
+    { "id": 4, "projectId": 2, "generalStatus": "in_progress", "budgetStatus": "on_track", "riskLevel": "medium", "clientSatisfaction": "neutral", "comment": "First migration wave done, minor data issues.", "createdAt": "2026-06-22T11:30:00.000Z" },
+    { "id": 5, "projectId": 2, "generalStatus": "in_progress", "budgetStatus": "on_track", "riskLevel": "low", "clientSatisfaction": "happy", "comment": "Kickoff went well.", "createdAt": "2026-05-15T09:00:00.000Z" },
+    { "id": 6, "projectId": 3, "generalStatus": "in_progress", "budgetStatus": "on_track", "riskLevel": "medium", "clientSatisfaction": "happy", "comment": "MVP feature set frozen. App store account pending.", "createdAt": "2026-07-01T13:00:00.000Z" },
+    { "id": 7, "projectId": 3, "generalStatus": "in_progress", "budgetStatus": "on_track", "riskLevel": "low", "clientSatisfaction": "happy", "comment": null, "createdAt": "2026-06-10T13:00:00.000Z" },
+    { "id": 8, "projectId": 4, "generalStatus": "on_hold", "budgetStatus": "on_track", "riskLevel": "low", "clientSatisfaction": null, "comment": "On hold until Nordwind finishes vendor selection.", "createdAt": "2026-06-18T09:00:00.000Z" },
+    { "id": 9, "projectId": 5, "generalStatus": "in_progress", "budgetStatus": null, "riskLevel": "low", "clientSatisfaction": null, "comment": null, "createdAt": "2026-06-30T09:00:00.000Z" }
+  ],
+  "invoices": [
+    { "id": 1, "projectId": 1, "createdAt": "2026-06-03T10:15:00.000Z", "periodStart": "2026-05-01", "periodEnd": "2026-05-31", "totalAmount": 34560, "reference": "AV-2026-014", "roleIds": [1, 3], "employeeIds": [3, 2] },
+    { "id": 2, "projectId": 1, "createdAt": "2026-07-02T09:40:00.000Z", "periodStart": "2026-06-01", "periodEnd": "2026-06-30", "totalAmount": 41280, "reference": "AV-2026-021", "roleIds": [1, 2, 3], "employeeIds": [3, 1, 2] }
+  ],
+  "savedReports": []
+}

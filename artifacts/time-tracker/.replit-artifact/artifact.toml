@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Time Tracker"
+version = "1.0.0"
+id = "artifacts/time-tracker"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21798
+
+[services.development]
+run = "pnpm --filter @workspace/time-tracker run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/time-tracker", "run", "build" ]
+publicDir = "artifacts/time-tracker/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21798"
+BASE_PATH = "/"

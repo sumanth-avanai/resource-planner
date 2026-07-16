@@ -1,0 +1,42 @@
+import { Router, type IRouter } from "express";
+import healthRouter from "./health";
+import clientsRouter from "./clients";
+import projectsRouter from "./projects";
+import employeesRouter from "./employees";
+import holidaysRouter from "./holidays";
+import timeEntriesRouter from "./timeEntries";
+import reportsRouter from "./reports";
+import pivotRouter from "./pivot";
+import vacationsRouter from "./vacations";
+import dashboardRouter from "./dashboard";
+import authRouter from "./auth";
+import appAuthRouter from "./app-auth";
+import savedReportsRouter from "./savedReports";
+import resourceBookingsRouter from "./resourceBookings";
+import projectRolesRouter from "./projectRoles";
+import billingRouter from "./billing";
+import employeeTimesheetRouter from "./employeeTimesheet";
+import projectStatusRouter from "./projectStatus";
+
+const router: IRouter = Router();
+
+router.use(healthRouter);
+router.use(clientsRouter);
+router.use(projectsRouter);
+router.use(employeesRouter);
+router.use(holidaysRouter);
+router.use(timeEntriesRouter);
+router.use(reportsRouter);
+router.use(pivotRouter);
+router.use(vacationsRouter);
+router.use(dashboardRouter);
+router.use(authRouter);
+router.use(appAuthRouter);
+router.use(savedReportsRouter);
+router.use(resourceBookingsRouter);
+router.use(projectRolesRouter);
+router.use(billingRouter);
+router.use(employeeTimesheetRouter);
+router.use(projectStatusRouter);
+
+export default router;
