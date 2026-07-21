@@ -34,7 +34,6 @@ async function enrichEntries(entries: (typeof timeEntriesTable.$inferSelect)[]) 
       .select({
         id: projectsTable.id,
         name: projectsTable.name,
-        isBillable: projectsTable.isBillable,
         clientName: clientsTable.name,
       })
       .from(projectsTable)
@@ -51,26 +50,24 @@ async function enrichEntries(entries: (typeof timeEntriesTable.$inferSelect)[]) 
 
   // Enrich role names if any entries have projectRoleId
   const roleIds = [...new Set(entries.map((e) => e.projectRoleId).filter((id): id is number => id != null))];
-  const roleMap = new Map<number, { name: string; dayRate: number }>();
+  const roleMap = new Map<number, string>();
   if (roleIds.length > 0) {
     const roles = await db
-      .select({ id: projectRolesTable.id, name: projectRolesTable.name, dayRate: projectRolesTable.dayRate })
+      .select({ id: projectRolesTable.id, name: projectRolesTable.name })
       .from(projectRolesTable)
       .where(inArray(projectRolesTable.id, roleIds));
-    for (const r of roles) roleMap.set(r.id, { name: r.name, dayRate: r.dayRate });
+    for (const r of roles) roleMap.set(r.id, r.name);
   }
 
   return entries.map((e) => {
     const project = projectMap.get(e.projectId);
-    const role = e.projectRoleId != null ? roleMap.get(e.projectRoleId) : undefined;
+    const roleName = e.projectRoleId != null ? roleMap.get(e.projectRoleId) : undefined;
     return {
       ...e,
       employeeName: employeeMap.get(e.employeeId) ?? null,
       projectName: project?.name ?? null,
       clientName: project?.clientName ?? null,
-      isBillable: project?.isBillable ?? null,
-      roleName: role?.name ?? null,
-      roleDayRate: role?.dayRate ?? null,
+      roleName: roleName ?? null,
     };
   });
 }

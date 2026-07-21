@@ -66,10 +66,6 @@ interface Vacation {
 }
 interface HolidayCalendar { id: number; code: string; name: string; createdAt: string }
 interface Holiday { id: number; calendarId: number; date: string; name: string }
-interface HealthUpdate {
-  id: number; projectId: number; generalStatus: string;
-  riskLevel: string; clientSatisfaction: string | null; comment: string | null; createdAt: string;
-}
 interface SavedReport { id: string; name: string; config: string; createdAt: string; updatedAt: string }
 
 interface MockDb {
@@ -82,7 +78,6 @@ interface MockDb {
   vacations: Vacation[];
   holidayCalendars: HolidayCalendar[];
   holidays: Holiday[];
-  healthUpdates: HealthUpdate[];
   invoices: unknown[];
   savedReports: SavedReport[];
   timeEntries: TimeEntry[];
@@ -112,7 +107,37 @@ function mondayOf(dateStr: string): string {
 
 /* ─────────────────────────── in-memory database ─────────────────────────── */
 
-const db = JSON.parse(JSON.stringify(seed)) as unknown as MockDb;
+// Mock persistence: in mock mode the "database" lives in the browser. We keep it
+// in localStorage so changes (hours, notes, absences…) survive a page refresh —
+// mirroring how the real Postgres-backed API behaves. Append `?resetMock` to the
+// URL to wipe it and reload the fresh demo data from db.json.
+const MOCK_STORE_KEY = "resource-planner.mockdb.v1";
+
+function loadPersistedDb(): MockDb | null {
+  try {
+    if (typeof localStorage === "undefined") return null;
+    if (typeof location !== "undefined" && new URLSearchParams(location.search).has("resetMock")) {
+      localStorage.removeItem(MOCK_STORE_KEY);
+      return null;
+    }
+    const raw = localStorage.getItem(MOCK_STORE_KEY);
+    return raw ? (JSON.parse(raw) as MockDb) : null;
+  } catch {
+    return null;
+  }
+}
+
+const persistedDb = loadPersistedDb();
+const db: MockDb = persistedDb ?? (JSON.parse(JSON.stringify(seed)) as unknown as MockDb);
+if (!Array.isArray(db.timeEntries)) db.timeEntries = [];
+
+function persistDb(): void {
+  try {
+    if (typeof localStorage !== "undefined") localStorage.setItem(MOCK_STORE_KEY, JSON.stringify(db));
+  } catch {
+    /* ignore write failures (quota / private mode) */
+  }
+}
 db.timeEntries = [];
 
 const state = { authenticated: true, nextId: 10_000 };
@@ -190,7 +215,8 @@ function generateTimeEntries() {
     }
   }
 }
-generateTimeEntries();
+// Only seed generated entries on a fresh DB; a persisted DB already has them.
+if (!persistedDb) generateTimeEntries();
 
 /* ───────────────────────────── enrichment ───────────────────────────────── */
 
@@ -974,157 +1000,6 @@ on("GET", "/api/dashboard/summary", () => {
   });
 });
 
-/* ─────────────────────────── project status ─────────────────────────────── */
-
-function projectBudgetTotals(projectId: number) {
-  const roles = db.projectRoles.filter((r) => r.projectId === projectId);
-  // day-based budgets (8h = 1 day); no money in this build
-  const budgetTotal = roles.reduce((s, r) => s + (r.budgetedDays ?? 0), 0) || null;
-  let logged = 0;
-  for (const e of db.timeEntries.filter((e) => e.projectId === projectId)) {
-    logged += e.hours / 8;
-  }
-  return { budgetTotal, logged: round1(logged) };
-}
-
-function trendFor(projectId: number): "up" | "down" | "stable" | null {
-  const rank: Record<string, number> = { low: 0, medium: 1, high: 2 };
-  const hist = db.healthUpdates
-    .filter((h) => h.projectId === projectId)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  if (hist.length < 2) return null;
-  const [a, b] = [rank[hist[0].riskLevel] ?? 0, rank[hist[1].riskLevel] ?? 0];
-  return a > b ? "down" : a < b ? "up" : "stable";
-}
-
-on("GET", "/api/project-status", () => {
-  const out = db.projects
-    .filter((p) => p.active)
-    .slice()
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .map((p) => {
-      const { budgetTotal, logged } = projectBudgetTotals(p.id);
-      const latest = db.healthUpdates
-        .filter((h) => h.projectId === p.id)
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
-      const age = latest ? Math.floor((Date.now() - new Date(latest.createdAt).getTime()) / DAY) : null;
-      const pct = budgetTotal ? logged / budgetTotal : null;
-      const budgetAlert = pct != null && pct >= 0.9;
-      return {
-        id: p.id,
-        name: p.name,
-        color: p.color,
-        clientName: clientById(p.clientId)?.name ?? null,
-        pmName: p.pmName,
-        generalStatus: p.generalStatus,
-        riskLevel: p.riskLevel,
-        clientSatisfaction: p.clientSatisfaction,
-        latestUpdateAt: latest ? latest.createdAt.replace(/\.\d{3}Z$/, "Z") : null,
-        latestComment: latest?.comment ?? null,
-        budgetTotal,
-        budgetConsumed: budgetTotal != null ? logged : null,
-        budgetProgress: pct != null ? round1(pct * 100) : null,
-        trendDirection: trendFor(p.id),
-        updateOverdue: age == null || age >= 14,
-        lastUpdateAge: age,
-        budgetAlert,
-        needsAttention: p.riskLevel === "high" || budgetAlert,
-      };
-    });
-  return json(out);
-});
-
-on("GET", "/api/project-status/:id", (m) => {
-  const p = projById(Number(m[1]));
-  if (!p) return notFound("Project");
-  const { budgetTotal, logged } = projectBudgetTotals(p.id);
-  const history = db.healthUpdates
-    .filter((h) => h.projectId === p.id)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const latest = history[0];
-  const age = latest ? Math.floor((Date.now() - new Date(latest.createdAt).getTime()) / DAY) : null;
-  const pct = budgetTotal ? logged / budgetTotal : null;
-  const months = new Map<string, { loggedDays: number }>();
-  for (const e of db.timeEntries.filter((e) => e.projectId === p.id)) {
-    const mo = monthOf(e.entryDate);
-    const cur = months.get(mo) ?? { loggedDays: 0 };
-    cur.loggedDays += e.hours / 8;
-    months.set(mo, cur);
-  }
-  const today = todayStr();
-  return json({
-    project: {
-      id: p.id,
-      name: p.name,
-      color: p.color,
-      clientId: p.clientId,
-      clientName: clientById(p.clientId)?.name ?? null,
-      pmName: p.pmName,
-      startDate: p.startDate,
-      endDate: p.endDate,
-      generalStatus: p.generalStatus,
-      riskLevel: p.riskLevel,
-      clientSatisfaction: p.clientSatisfaction,
-      nextSteps: p.nextSteps ?? null,
-      budgetTotal,
-      loggedTotal: logged,
-      trendDirection: trendFor(p.id),
-      nextUpdateDue: latest ? addDays(latest.createdAt.slice(0, 10), 14) : null,
-      updateOverdue: age == null || age >= 14,
-      lastUpdateAge: age,
-      lastCommentAt: history.find((h) => h.comment)?.createdAt ?? null,
-      budgetAlert: pct != null && pct >= 0.9,
-      budgetProgress: pct != null ? round1(pct * 100) : null,
-    },
-    history,
-    monthlyData: [...months.entries()]
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([month, v]) => ({ month, loggedDays: round1(v.loggedDays) })),
-    futureBookings: db.resourceBookings
-      .filter((b) => b.projectId === p.id && b.endDate >= today)
-      .map((b) => ({
-        id: b.id,
-        employeeId: b.employeeId,
-        employeeName: empById(b.employeeId)?.name ?? "",
-        startDate: b.startDate,
-        endDate: b.endDate,
-        hoursPerDay: b.hoursPerDay,
-        weekdayHours: b.weekdayHours ?? null,
-        projectRoleId: b.projectRoleId,
-        roleName: roleById(b.projectRoleId)?.name ?? null,
-      })),
-    updateCadenceDays: 14,
-    budgetAlertThreshold: 0.9,
-  });
-});
-
-on("POST", "/api/project-status/:id/health-updates", (m, _u, body) => {
-  const p = projById(Number(m[1]));
-  if (!p) return notFound("Project");
-  const h = {
-    id: nid(),
-    projectId: p.id,
-    generalStatus: String(body?.generalStatus ?? "in_progress"),
-    riskLevel: String(body?.riskLevel ?? "low"),
-    clientSatisfaction: (body?.clientSatisfaction as string) ?? null,
-    comment: (body?.comment as string) ?? null,
-    createdAt: now(),
-  };
-  db.healthUpdates.push(h);
-  Object.assign(p, {
-    generalStatus: h.generalStatus,
-    riskLevel: h.riskLevel,
-    clientSatisfaction: h.clientSatisfaction,
-  });
-  return json(h, 201);
-});
-on("PATCH", "/api/project-status/:id/next-steps", (m, _u, body) => {
-  const p = projById(Number(m[1]));
-  if (!p) return notFound("Project");
-  p.nextSteps = (body?.nextSteps as Project["nextSteps"]) ?? [];
-  return json({ ok: true });
-});
-
 /* ─────────────────────────── report helpers ─────────────────────────────── */
 
 function billingEntries(projectId: number | null, start: string | null, end: string | null) {
@@ -1456,8 +1331,8 @@ on("GET", "/api/employee-timesheet/:employeeId/week/:weekStart", (m) => {
     const entries: Record<string, number> = {};
     const notes: Record<string, string | null> = {};
     for (const e of weekEntries.filter((e) => e.projectId === projectId && (e.projectRoleId ?? null) === roleId)) {
-      entries[e.entryDate] = e.hours;
-      notes[e.entryDate] = e.note;
+      if (e.hours !== 0) entries[e.entryDate] = e.hours;
+      if (e.note) notes[e.entryDate] = e.note;
     }
     prefilled.push({
       projectId,
@@ -1511,16 +1386,18 @@ on("POST", "/api/employee-timesheet/:employeeId/week/:weekStart", (m, _u, body) 
     const hours = Number(item.hours ?? 0);
     const projectId = Number(item.projectId);
     const roleId = item.projectRoleId != null ? Number(item.projectRoleId) : null;
+    const note = (item.note as string)?.trim() ? (item.note as string) : null;
     const existing = db.timeEntries.find(
       (e) => e.employeeId === emp.id && e.projectId === projectId && (e.projectRoleId ?? null) === roleId && e.entryDate === entryDate,
     );
-    if (hours === 0) {
+    // Remove only truly-empty cells (no hours AND no note). A note-only cell is kept.
+    if (hours === 0 && !note) {
       if (existing) db.timeEntries.splice(db.timeEntries.indexOf(existing), 1);
       continue;
     }
     if (existing) {
       existing.hours = hours;
-      existing.note = (item.note as string) ?? existing.note;
+      existing.note = note;
       existing.updatedAt = now();
       result.push(existing);
     } else {
@@ -1531,7 +1408,7 @@ on("POST", "/api/employee-timesheet/:employeeId/week/:weekStart", (m, _u, body) 
         projectRoleId: roleId,
         entryDate,
         hours,
-        note: (item.note as string) ?? null,
+        note,
         createdAt: now(),
         updatedAt: now(),
       };
@@ -1540,6 +1417,39 @@ on("POST", "/api/employee-timesheet/:employeeId/week/:weekStart", (m, _u, body) 
     }
   }
   return json(result);
+});
+
+/* ── Employee self-service absences (token-scoped; mirrors api-server) ─────── */
+on("GET", "/api/employee-timesheet/:employeeId/vacations", (m) => {
+  const eid = Number(m[1]);
+  return json(
+    db.vacations.filter((v) => v.employeeId === eid).slice().sort((a, b) => b.startDate.localeCompare(a.startDate)),
+  );
+});
+on("POST", "/api/employee-timesheet/:employeeId/vacations", (m, _u, body) => {
+  const eid = Number(m[1]);
+  if (!empById(eid)) return notFound("Employee");
+  const v = {
+    id: nid(),
+    employeeId: eid,
+    startDate: String(body?.startDate),
+    endDate: String(body?.endDate),
+    vacationType: ["vacation", "sick", "unpaid_leave", "other"].includes(String(body?.vacationType))
+      ? String(body?.vacationType)
+      : "vacation",
+    note: (body?.note as string) ?? null,
+    createdAt: now(),
+  };
+  db.vacations.push(v);
+  return json(v, 201);
+});
+on("DELETE", "/api/employee-timesheet/:employeeId/vacations/:id", (m) => {
+  const eid = Number(m[1]);
+  const id = Number(m[2]);
+  const i = db.vacations.findIndex((v) => v.id === id && v.employeeId === eid);
+  if (i < 0) return notFound("Vacation");
+  db.vacations.splice(i, 1);
+  return noContent();
 });
 
 /* ───────────────────────────── installer ────────────────────────────────── */
@@ -1567,7 +1477,9 @@ export function installMockApi() {
       // tiny latency so loading states are visible but snappy
       await new Promise((res) => setTimeout(res, 60 + Math.random() * 90));
       try {
-        return await r.fn(match, url, body);
+        const resp = await r.fn(match, url, body);
+        if (method !== "GET") persistDb(); // persist mutations across page refresh
+        return resp;
       } catch (err) {
         console.error(`[mock-api] handler error for ${method} ${url.pathname}`, err);
         return json({ error: "Mock handler error" }, 500);

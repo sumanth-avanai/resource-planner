@@ -40,7 +40,6 @@ function buildSelect() {
       projectColor: projectsTable.color,
       clientName: clientsTable.name,
       projectRoleName: projectRolesTable.name,
-      dayRate: projectRolesTable.dayRate,
     })
     .from(resourceBookingsTable)
     .innerJoin(employeesTable, eq(resourceBookingsTable.employeeId, employeesTable.id))

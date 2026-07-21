@@ -51,6 +51,11 @@ export default defineConfig({
       workspace: apiZodSrc,
       client: "zod",
       target: "generated",
+      // Leave the hand-maintained lib/api-zod/src/index.ts alone (it deliberately
+      // re-exports only ./generated/api, not ./generated/types, to avoid the
+      // duplicate zod-schema/TS-type export clash). Without this, every regen
+      // re-adds `export * from "./generated/types"` and the build breaks.
+      indexFiles: false,
       schemas: { path: "generated/types", type: "typescript" },
       mode: "split",
       clean: true,

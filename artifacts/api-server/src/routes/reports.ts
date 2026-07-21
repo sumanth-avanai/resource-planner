@@ -62,7 +62,7 @@ router.get("/reports/utilization", async (req, res): Promise<void> => {
     );
 
     const entries = await db
-      .select({ hours: timeEntriesTable.hours, isBillable: projectsTable.isBillable })
+      .select({ hours: timeEntriesTable.hours })
       .from(timeEntriesTable)
       .innerJoin(projectsTable, eq(timeEntriesTable.projectId, projectsTable.id))
       .where(
@@ -73,21 +73,15 @@ router.get("/reports/utilization", async (req, res): Promise<void> => {
         )
       );
 
-    const billableHours    = entries.filter((e) => e.isBillable).reduce((s, e) => s + e.hours, 0);
-    const nonBillableHours = entries.filter((e) => !e.isBillable).reduce((s, e) => s + e.hours, 0);
-    const totalBookedHours = billableHours + nonBillableHours;
+    const totalBookedHours = entries.reduce((s, e) => s + e.hours, 0);
 
-    const billableUtilization = availableHours > 0 ? Math.round((billableHours    / availableHours) * 1000) / 10 : 0;
     const overallUtilization  = availableHours > 0 ? Math.round((totalBookedHours / availableHours) * 1000) / 10 : 0;
 
     results.push({
       employeeId:          emp.id,
       employeeName:        emp.name,
       availableHours:      Math.round(availableHours      * 100) / 100,
-      billableHours:       Math.round(billableHours       * 100) / 100,
-      nonBillableHours:    Math.round(nonBillableHours    * 100) / 100,
       totalBookedHours:    Math.round(totalBookedHours    * 100) / 100,
-      billableUtilization,
       overallUtilization,
     });
   }
@@ -109,7 +103,6 @@ router.get("/reports/projects", async (req, res): Promise<void> => {
       projectId:   projectsTable.id,
       projectName: projectsTable.name,
       clientName:  clientsTable.name,
-      isBillable:  projectsTable.isBillable,
       hours:       timeEntriesTable.hours,
     })
     .from(timeEntriesTable)
@@ -124,7 +117,7 @@ router.get("/reports/projects", async (req, res): Promise<void> => {
 
   const projectMap = new Map<
     number,
-    { projectId: number; projectName: string; clientName: string; isBillable: boolean; totalHours: number; billableHours: number; nonBillableHours: number }
+    { projectId: number; projectName: string; clientName: string; totalHours: number }
   >();
 
   for (const row of rows) {
@@ -133,24 +126,17 @@ router.get("/reports/projects", async (req, res): Promise<void> => {
         projectId:       row.projectId,
         projectName:     row.projectName,
         clientName:      row.clientName ?? "",
-        isBillable:      row.isBillable,
         totalHours:      0,
-        billableHours:   0,
-        nonBillableHours: 0,
       });
     }
     const agg = projectMap.get(row.projectId)!;
     agg.totalHours += row.hours;
-    if (row.isBillable) agg.billableHours    += row.hours;
-    else                agg.nonBillableHours += row.hours;
   }
 
   res.json(
     Array.from(projectMap.values()).map((r) => ({
       ...r,
       totalHours:       Math.round(r.totalHours       * 100) / 100,
-      billableHours:    Math.round(r.billableHours    * 100) / 100,
-      nonBillableHours: Math.round(r.nonBillableHours * 100) / 100,
     }))
   );
 });
@@ -168,7 +154,6 @@ router.get("/reports/clients", async (req, res): Promise<void> => {
     .select({
       clientId:   clientsTable.id,
       clientName: clientsTable.name,
-      isBillable: projectsTable.isBillable,
       hours:      timeEntriesTable.hours,
     })
     .from(timeEntriesTable)
@@ -181,24 +166,20 @@ router.get("/reports/clients", async (req, res): Promise<void> => {
       )
     );
 
-  const clientMap = new Map<number, { clientId: number; clientName: string; totalHours: number; billableHours: number; nonBillableHours: number }>();
+  const clientMap = new Map<number, { clientId: number; clientName: string; totalHours: number }>();
 
   for (const row of rows) {
     if (!clientMap.has(row.clientId)) {
-      clientMap.set(row.clientId, { clientId: row.clientId, clientName: row.clientName, totalHours: 0, billableHours: 0, nonBillableHours: 0 });
+      clientMap.set(row.clientId, { clientId: row.clientId, clientName: row.clientName, totalHours: 0 });
     }
     const agg = clientMap.get(row.clientId)!;
     agg.totalHours += row.hours;
-    if (row.isBillable) agg.billableHours    += row.hours;
-    else                agg.nonBillableHours += row.hours;
   }
 
   res.json(
     Array.from(clientMap.values()).map((r) => ({
       ...r,
       totalHours:       Math.round(r.totalHours       * 100) / 100,
-      billableHours:    Math.round(r.billableHours    * 100) / 100,
-      nonBillableHours: Math.round(r.nonBillableHours * 100) / 100,
     }))
   );
 });

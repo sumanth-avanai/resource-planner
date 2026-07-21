@@ -1,6 +1,14 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, employeesTable } from "@workspace/db";
+import {
+  db,
+  employeesTable,
+  projectsTable,
+  projectRolesTable,
+  projectRoleAssignmentsTable,
+  resourceBookingsTable,
+  timeEntriesTable,
+} from "@workspace/db";
 import {
   ListEmployeesQueryParams,
   CreateEmployeeBody,
@@ -15,12 +23,54 @@ import { hashPin, generateToken } from "../lib/crypto";
 
 const router: IRouter = Router();
 
-function formatEmployee(emp: typeof employeesTable.$inferSelect) {
+function formatEmployee(emp: typeof employeesTable.$inferSelect, pmNames: string[] = []) {
   return {
     ...emp,
     workingDaysMask: emp.workingDaysMask.split(",").map(Number),
     personalAccessPinHash: undefined, // never expose hash
+    // Derived PM team membership (many-to-many): the PMs whose projects this
+    // employee works on. Drives the PM groupings in the admin panels.
+    pmNames,
   };
+}
+
+/**
+ * Derive, for every employee, the distinct set of PM names (projects.pmName) of
+ * the projects they touch — via role assignments, resource bookings, or logged
+ * time. Mirrors pmNamesForEmployee() in the mock API. One-shot, in-memory joins;
+ * fine for small-agency data volumes.
+ */
+async function pmNamesByEmployee(): Promise<Map<number, string[]>> {
+  const [projects, roles, assigns, bookings, entries] = await Promise.all([
+    db.select({ id: projectsTable.id, pmName: projectsTable.pmName }).from(projectsTable),
+    db.select({ id: projectRolesTable.id, projectId: projectRolesTable.projectId }).from(projectRolesTable),
+    db.select({ employeeId: projectRoleAssignmentsTable.employeeId, roleId: projectRoleAssignmentsTable.projectRoleId }).from(projectRoleAssignmentsTable),
+    db.select({ employeeId: resourceBookingsTable.employeeId, projectId: resourceBookingsTable.projectId }).from(resourceBookingsTable),
+    db.select({ employeeId: timeEntriesTable.employeeId, projectId: timeEntriesTable.projectId }).from(timeEntriesTable),
+  ]);
+
+  const pmByProject = new Map<number, string>();
+  for (const p of projects) if (p.pmName) pmByProject.set(p.id, p.pmName);
+  const projByRole = new Map<number, number>();
+  for (const r of roles) projByRole.set(r.id, r.projectId);
+
+  const empProjects = new Map<number, Set<number>>();
+  const link = (empId: number, projId: number) => {
+    let s = empProjects.get(empId);
+    if (!s) empProjects.set(empId, (s = new Set()));
+    s.add(projId);
+  };
+  for (const a of assigns) { const pid = projByRole.get(a.roleId); if (pid != null) link(a.employeeId, pid); }
+  for (const b of bookings) link(b.employeeId, b.projectId);
+  for (const e of entries) link(e.employeeId, e.projectId);
+
+  const out = new Map<number, string[]>();
+  for (const [empId, projIds] of empProjects) {
+    const names = new Set<string>();
+    for (const pid of projIds) { const nm = pmByProject.get(pid); if (nm) names.add(nm); }
+    out.set(empId, Array.from(names).sort());
+  }
+  return out;
 }
 
 router.get("/employees", async (req, res): Promise<void> => {
@@ -33,7 +83,8 @@ router.get("/employees", async (req, res): Promise<void> => {
     .where(includeInactive ? undefined : eq(employeesTable.active, true))
     .orderBy(employeesTable.name);
 
-  res.json(employees.map(formatEmployee));
+  const pmMap = await pmNamesByEmployee();
+  res.json(employees.map((emp) => formatEmployee(emp, pmMap.get(emp.id) ?? [])));
 });
 
 router.post("/employees", async (req, res): Promise<void> => {
@@ -113,7 +164,8 @@ router.get("/employees/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  res.json(formatEmployee(emp));
+  const pmMap = await pmNamesByEmployee();
+  res.json(formatEmployee(emp, pmMap.get(emp.id) ?? []));
 });
 
 router.patch("/employees/:id", async (req, res): Promise<void> => {

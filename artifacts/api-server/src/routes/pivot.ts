@@ -7,10 +7,10 @@
  *   rowDimension    employees | projects | clients | roles
  *   colDimension    none | week | month | quarter
  *   metrics         comma-separated or repeated query param:
- *                     booked | billable_booked | planned | available | budgeted |
+ *                     booked | planned | available | budgeted |
  *                     remaining_unbooked | remaining_unplanned |
  *                     utilization_pct | plan_completion_pct
- *                   Legacy single param: metric=billable_hours|total_hours|... (mapped automatically)
+ *                   Legacy single param: metric=total_hours|... (mapped automatically)
  *   employeeIds     comma-separated IDs  (optional)
  *   projectIds      comma-separated IDs  (optional)
  *   clientIds       comma-separated IDs  (optional)
@@ -78,12 +78,9 @@ function round2(n: number): number {
 }
 
 // Legacy metric alias normalisation
-// billable_utilization_percent → billable_utilization_pct (billable_booked / available × 100)
 // overall_utilization_percent  → utilization_pct          (booked / available × 100)
 const LEGACY_METRIC_MAP: Record<string, string> = {
-  billable_hours:               "billable_booked",
   total_hours:                  "booked",
-  billable_utilization_percent: "billable_utilization_pct",
   overall_utilization_percent:  "utilization_pct",
   booked_hours:                 "planned",
   budget_hours:                 "budgeted",
@@ -183,21 +180,19 @@ function getBucketLabel(key: string, colDim: string): string {
 
 function computeMetrics(
   metricKeys: string[],
-  agg: { booked: number; billable: number; planned: number; available: number; budgeted: number | null },
+  agg: { booked: number; planned: number; available: number; budgeted: number | null },
 ): Record<string, number> {
   const r: Record<string, number> = {};
   for (const k of metricKeys) {
     let v: number;
     switch (k) {
       case "booked":              v = round2(agg.booked);   break;
-      case "billable_booked":     v = round2(agg.billable); break;
       case "planned":             v = round2(agg.planned);  break;
       case "available":           v = round2(agg.available); break;
       case "budgeted":            v = round2(agg.budgeted ?? 0); break;
       case "remaining_unbooked":  v = agg.budgeted != null ? round2(agg.budgeted - agg.booked)            : 0; break;
       case "remaining_unplanned": v = agg.budgeted != null ? round2(agg.budgeted - agg.planned)           : 0; break;
       case "utilization_pct":          v = agg.available > 0    ? round2((agg.booked   / agg.available) * 100) : 0; break;
-      case "billable_utilization_pct": v = agg.available > 0    ? round2((agg.billable / agg.available) * 100) : 0; break;
       case "plan_completion_pct":      v = agg.planned   > 0    ? round2((agg.booked   / agg.planned)   * 100) : 0; break;
       case "budget_used_pct":     v = (agg.budgeted != null && agg.budgeted > 0) ? round2((agg.booked / agg.budgeted) * 100) : 0; break;
       default:                    v = round2(agg.booked);   break;
@@ -248,7 +243,6 @@ router.get("/reports/pivot", async (req, res): Promise<void> => {
       name:        projectsTable.name,
       clientId:    projectsTable.clientId,
       clientName:  clientsTable.name,
-      isBillable:  projectsTable.isBillable,
       budgetHours: projectsTable.budgetHours,
     })
     .from(projectsTable)
@@ -314,12 +308,11 @@ router.get("/reports/pivot", async (req, res): Promise<void> => {
   const columnLabels = allColKeys.map((k) => getBucketLabel(k, colDimension));
 
   // ── 9. Nested aggregation maps ────────────────────────────────────────────
-  // entryAgg[empId][projId][roleStr][bucket] = {booked, billable}
-  type EA = { booked: number; billable: number };
+  // entryAgg[empId][projId][roleStr][bucket] = {booked}
+  type EA = { booked: number };
   const entryAgg = new Map<number, Map<number, Map<string, Map<string, EA>>>>();
 
   for (const e of rawEntries) {
-    const isBillable = projectById.get(e.projectId)?.isBillable ?? false;
     const roleStr    = e.projectRoleId != null ? String(e.projectRoleId) : "null";
     const timeBucket = dateToBucket(e.entryDate, colDimension);
     const buckets    = timeBucket === "Total" ? ["Total"] : [timeBucket, "Total"];
@@ -331,9 +324,8 @@ router.get("/reports/pivot", async (req, res): Promise<void> => {
       const pm = em.get(e.projectId)!;
       if (!pm.has(roleStr)) pm.set(roleStr, new Map());
       const rm  = pm.get(roleStr)!;
-      const cur = rm.get(bucket) ?? { booked: 0, billable: 0 };
+      const cur = rm.get(bucket) ?? { booked: 0 };
       cur.booked += e.hours;
-      if (isBillable) cur.billable += e.hours;
       rm.set(bucket, cur);
     }
   }
@@ -365,7 +357,7 @@ router.get("/reports/pivot", async (req, res): Promise<void> => {
 
   // ── 10. Employee availability per bucket ──────────────────────────────────
   // Any metric whose computation divides by `available` requires this precomputation.
-  const AVAIL_DEPENDENT_METRICS = new Set(["available", "utilization_pct", "billable_utilization_pct"]);
+  const AVAIL_DEPENDENT_METRICS = new Set(["available", "utilization_pct"]);
   const empAvailBucket = new Map<string, number>(); // `${empId}::${bucket}`
   const needsAvail = metrics.some((m) => AVAIL_DEPENDENT_METRICS.has(m));
   if (needsAvail) {
@@ -388,43 +380,43 @@ router.get("/reports/pivot", async (req, res): Promise<void> => {
 
   // Employee: sum all projects and roles
   function empEntrySum(empId: number, bucket: string): EA {
-    const r = { booked: 0, billable: 0 };
+    const r = { booked: 0 };
     const em = entryAgg.get(empId);
     if (!em) return r;
     for (const pm of em.values())
       for (const rm of pm.values()) {
         const a = rm.get(bucket);
-        if (a) { r.booked += a.booked; r.billable += a.billable; }
+        if (a) { r.booked += a.booked; }
       }
     return r;
   }
 
   // Employee within a specific project: all roles
   function empProjEntrySum(empId: number, projId: number, bucket: string): EA {
-    const r = { booked: 0, billable: 0 };
+    const r = { booked: 0 };
     const pm = entryAgg.get(empId)?.get(projId);
     if (!pm) return r;
     for (const rm of pm.values()) {
       const a = rm.get(bucket);
-      if (a) { r.booked += a.booked; r.billable += a.billable; }
+      if (a) { r.booked += a.booked; }
     }
     return r;
   }
 
   // Employee within project+role
   function empProjRoleEntrySum(empId: number, projId: number, roleStr: string, bucket: string): EA {
-    return entryAgg.get(empId)?.get(projId)?.get(roleStr)?.get(bucket) ?? { booked: 0, billable: 0 };
+    return entryAgg.get(empId)?.get(projId)?.get(roleStr)?.get(bucket) ?? { booked: 0 };
   }
 
   // Project: all employees, all roles
   function projEntrySum(projId: number, bucket: string): EA {
-    const r = { booked: 0, billable: 0 };
+    const r = { booked: 0 };
     for (const em of entryAgg.values()) {
       const pm = em.get(projId);
       if (!pm) continue;
       for (const rm of pm.values()) {
         const a = rm.get(bucket);
-        if (a) { r.booked += a.booked; r.billable += a.billable; }
+        if (a) { r.booked += a.booked; }
       }
     }
     return r;
@@ -432,10 +424,10 @@ router.get("/reports/pivot", async (req, res): Promise<void> => {
 
   // Project+role: all employees
   function projRoleEntrySum(projId: number, roleStr: string, bucket: string): EA {
-    const r = { booked: 0, billable: 0 };
+    const r = { booked: 0 };
     for (const em of entryAgg.values()) {
       const a = em.get(projId)?.get(roleStr)?.get(bucket);
-      if (a) { r.booked += a.booked; r.billable += a.billable; }
+      if (a) { r.booked += a.booked; }
     }
     return r;
   }
@@ -499,7 +491,7 @@ router.get("/reports/pivot", async (req, res): Promise<void> => {
     ea: EA, planned: number, available: number, budgeted: number | null
   ): Record<string, number> {
     return computeMetrics(metrics, {
-      booked: ea.booked, billable: ea.billable, planned, available, budgeted,
+      booked: ea.booked, planned, available, budgeted,
     });
   }
 
@@ -724,15 +716,14 @@ router.get("/reports/pivot", async (req, res): Promise<void> => {
 
       const clientData: Record<string, Record<string, number>> = {};
       for (const bucket of allColKeys) {
-        let booked = 0, billable = 0, planned = 0;
+        let booked = 0, planned = 0;
         for (const pid of clientProjIds) {
           const ea  = projEntrySum(pid, bucket);
           booked   += ea.booked;
-          billable += ea.billable;
           planned  += projPlannedSum(pid, bucket);
         }
         const avail = empSetAvail(clientEmpIds, bucket);
-        clientData[bucket] = mkMetrics({ booked, billable }, planned, avail, clientBudgeted);
+        clientData[bucket] = mkMetrics({ booked }, planned, avail, clientBudgeted);
       }
 
       const projChildren: DrillRow[] = client.projects

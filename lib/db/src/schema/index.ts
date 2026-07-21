@@ -8,4 +8,3 @@ export * from "./savedReports";
 export * from "./resourceBookings";
 export * from "./projectRoles";
 export * from "./projectRoleAssignments";
-export * from "./projectHealthUpdates";

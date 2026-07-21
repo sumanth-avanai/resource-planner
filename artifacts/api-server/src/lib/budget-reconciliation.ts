@@ -3,8 +3,7 @@
  *
  * Core identity: B = Logged + Reserved + Unplanned
  *
- * - Logged (C)   = ALL delivered work, invoiced or not. Invoicing is a billing
- *                  overlay and never moves capacity figures.
+ * - Logged (C)   = ALL delivered work — every logged hour counts as consumption.
  * - Reserved (R) = undelivered planned days from TODAY onwards only — real
  *                  future commitments, netted per day against logged hours.
  * - Stale (S)    = undelivered planned days strictly BEFORE today. A
@@ -40,19 +39,15 @@ export interface ReconciliationBooking {
 export interface ReconciliationTimeEntry {
   entryDate: string;
   hours: number;
-  isInvoiced: boolean;
 }
 
 export interface ReconciliationResult {
   loggedDays: number;
-  invoicedDays: number;
   reservedDays: number;
   /** Undelivered planned days strictly before today (never consumption). */
   stalePlanDays: number;
   unplannedDays: number | null;
   freeDays: number | null;
-  remainingBudgetDays: number | null;
-  loggedNotInvoicedDays: number;
   plannedDays: number;
 }
 
@@ -108,7 +103,7 @@ export function calcEffectiveBookingBudgetDays(
  *
  * @param budgetedDays  Role's budgeted days (null = no budget set).
  * @param bookings      All resource bookings for this role, each with avail data.
- * @param timeEntries   All time entries for this role with invoiced status.
+ * @param timeEntries   All time entries for this role.
  * @param today         Override for "today" — used in tests and bulk-release. Defaults to server date.
  */
 export function calcRoleBudgetReconciliation(
@@ -158,26 +153,15 @@ export function calcRoleBudgetReconciliation(
   }
 
   // ── Step 2: build per-day logged-hours map ──────────────────────────────────
-  const loggedByDay = new Map<string, { total: number; invoiced: number }>();
+  const loggedByDay = new Map<string, number>();
   for (const entry of timeEntries) {
-    const existing = loggedByDay.get(entry.entryDate);
-    if (existing) {
-      existing.total += entry.hours;
-      if (entry.isInvoiced) existing.invoiced += entry.hours;
-    } else {
-      loggedByDay.set(entry.entryDate, {
-        total: entry.hours,
-        invoiced: entry.isInvoiced ? entry.hours : 0,
-      });
-    }
+    loggedByDay.set(entry.entryDate, (loggedByDay.get(entry.entryDate) ?? 0) + entry.hours);
   }
 
   // ── Step 3: aggregate totals ────────────────────────────────────────────────
   let totalLoggedHours = 0;
-  let totalInvoicedHours = 0;
-  for (const { total, invoiced } of loggedByDay.values()) {
-    totalLoggedHours += total;
-    totalInvoicedHours += invoiced;
+  for (const hours of loggedByDay.values()) {
+    totalLoggedHours += hours;
   }
 
   // ── Step 4: split undelivered planned into committed (future) vs stale ─────
@@ -187,7 +171,7 @@ export function calcRoleBudgetReconciliation(
   let totalReservedHours = 0;
   let totalStaleHours = 0;
   for (const [dateStr, plannedHours] of plannedByDay.entries()) {
-    const loggedHours = loggedByDay.get(dateStr)?.total ?? 0;
+    const loggedHours = loggedByDay.get(dateStr) ?? 0;
     const undelivered = Math.max(plannedHours - loggedHours, 0);
     if (dateStr >= todayStr) totalReservedHours += undelivered;
     else totalStaleHours += undelivered;
@@ -195,37 +179,28 @@ export function calcRoleBudgetReconciliation(
 
   // ── Step 5: derive canonical bucket values (B = Logged + Reserved + Unplanned)
   const loggedDays = round2(totalLoggedHours / 8);
-  const invoicedDays = round2(totalInvoicedHours / 8);
   const reservedDays = round2(totalReservedHours / 8);
   const stalePlanDays = round2(totalStaleHours / 8);
-  const loggedNotInvoicedDays = round2(loggedDays - invoicedDays);
 
   // plannedDays = total booking days (sum over all bookings; kept for reference)
   let totalPlannedHours = 0;
   for (const h of plannedByDay.values()) totalPlannedHours += h;
   const plannedDays = round2(totalPlannedHours / 8);
 
-  // Unplanned subtracts LOGGED (all delivered work), never invoiced — billing
-  // state must not move capacity. Negative ⇔ genuine over-commitment.
+  // Unplanned subtracts LOGGED (all delivered work). Negative ⇔ genuine over-commitment.
   const unplannedDays = budgetedDays != null
     ? round2(budgetedDays - loggedDays - reservedDays)
     : null;
   const freeDays = budgetedDays != null
     ? round2(budgetedDays - loggedDays)
     : null;
-  const remainingBudgetDays = budgetedDays != null
-    ? round2(budgetedDays - invoicedDays)
-    : null;
 
   return {
     loggedDays,
-    invoicedDays,
     reservedDays,
     stalePlanDays,
     unplannedDays,
     freeDays,
-    remainingBudgetDays,
-    loggedNotInvoicedDays,
     plannedDays,
   };
 }

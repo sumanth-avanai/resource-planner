@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request } from "express";
-import { eq, and, gte, lte, isNull } from "drizzle-orm";
+import { eq, and, gte, lte, isNull, desc } from "drizzle-orm";
 import { z } from "zod";
 import {
   db,
@@ -333,8 +333,9 @@ router.get("/employee-timesheet/:employeeId/week/:weekStart", async (req, res): 
       });
     }
     const dateStr = String(e.entryDate).slice(0, 10);
-    prefilledMap.get(k)!.entries[dateStr] = Number(e.hours);
-    prefilledMap.get(k)!.notes[dateStr] = e.note ?? null;
+    // 0-hour rows are note-only: keep the note but don't force a "0" into the cell.
+    if (Number(e.hours) !== 0) prefilledMap.get(k)!.entries[dateStr] = Number(e.hours);
+    if (e.note) prefilledMap.get(k)!.notes[dateStr] = e.note;
   }
 
   const prefilled = Array.from(prefilledMap.values()).sort((a, b) =>
@@ -515,18 +516,21 @@ router.post("/employee-timesheet/:employeeId/week/:weekStart", async (req, res):
         )
       );
 
+    const note = typeof item.note === "string" && item.note.trim() ? item.note : null;
+
     if (existing) {
-      if (item.hours === 0) {
+      // Remove only truly-empty cells (no hours AND no note). Keep note-only cells.
+      if (item.hours === 0 && !note) {
         await db.delete(timeEntriesTable).where(eq(timeEntriesTable.id, existing.id));
       } else {
         const [updated] = await db
           .update(timeEntriesTable)
-          .set({ hours: item.hours, note: item.note ?? null })
+          .set({ hours: item.hours, note })
           .where(eq(timeEntriesTable.id, existing.id))
           .returning();
         results.push(updated);
       }
-    } else if (item.hours > 0) {
+    } else if (item.hours > 0 || note) {
       const [created] = await db
         .insert(timeEntriesTable)
         .values({
@@ -535,7 +539,7 @@ router.post("/employee-timesheet/:employeeId/week/:weekStart", async (req, res):
           projectRoleId,
           entryDate: item.entryDate,
           hours: item.hours,
-          note: item.note ?? null,
+          note,
         })
         .returning();
       results.push(created);
@@ -543,6 +547,73 @@ router.post("/employee-timesheet/:employeeId/week/:weekStart", async (req, res):
   }
 
   res.json(results);
+});
+
+// ── Employee self-service absences (token-scoped) ───────────────────────────
+// The admin /api/vacations routes require an admin session. These let an employee
+// manage ONLY their own absences from the personal portal, authenticated by their
+// personal-access token (same scheme as the timesheet endpoints above).
+const VAC_TYPES = ["vacation", "sick", "unpaid_leave", "other"] as const;
+
+router.get("/employee-timesheet/:employeeId/vacations", async (req, res): Promise<void> => {
+  const employeeId = parseInt(req.params.employeeId, 10);
+  const token = req.query.token as string | undefined;
+  if (isNaN(employeeId) || !(await validateEmployeeToken(employeeId, token))) {
+    res.status(401).json({ error: "Invalid token" });
+    return;
+  }
+  const rows = await db
+    .select()
+    .from(employeeVacationsTable)
+    .where(eq(employeeVacationsTable.employeeId, employeeId))
+    .orderBy(desc(employeeVacationsTable.startDate));
+  res.json(rows);
+});
+
+router.post("/employee-timesheet/:employeeId/vacations", async (req, res): Promise<void> => {
+  const employeeId = parseInt(req.params.employeeId, 10);
+  const token = req.query.token as string | undefined;
+  if (isNaN(employeeId) || !(await validateEmployeeToken(employeeId, token))) {
+    res.status(401).json({ error: "Invalid token" });
+    return;
+  }
+  const { startDate, endDate, vacationType, note } = req.body ?? {};
+  if (typeof startDate !== "string" || !DATE_RE.test(startDate) ||
+      typeof endDate !== "string" || !DATE_RE.test(endDate) || endDate < startDate) {
+    res.status(400).json({ error: "Invalid dates" });
+    return;
+  }
+  const type = (VAC_TYPES as readonly string[]).includes(vacationType) ? vacationType : "vacation";
+  const [row] = await db
+    .insert(employeeVacationsTable)
+    .values({
+      employeeId,
+      startDate,
+      endDate,
+      vacationType: type,
+      note: typeof note === "string" && note.trim() ? note : null,
+    })
+    .returning();
+  res.status(201).json(row);
+});
+
+router.delete("/employee-timesheet/:employeeId/vacations/:id", async (req, res): Promise<void> => {
+  const employeeId = parseInt(req.params.employeeId, 10);
+  const id = parseInt(req.params.id, 10);
+  const token = req.query.token as string | undefined;
+  if (isNaN(employeeId) || isNaN(id) || !(await validateEmployeeToken(employeeId, token))) {
+    res.status(401).json({ error: "Invalid token" });
+    return;
+  }
+  const [deleted] = await db
+    .delete(employeeVacationsTable)
+    .where(and(eq(employeeVacationsTable.id, id), eq(employeeVacationsTable.employeeId, employeeId)))
+    .returning();
+  if (!deleted) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  res.sendStatus(204);
 });
 
 export default router;

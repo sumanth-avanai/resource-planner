@@ -246,12 +246,14 @@ function AddTimeOffDialog({
   open,
   onClose,
   employeeId,
+  employeeToken,
   defaultDate,
   onChanged,
 }: {
   open: boolean;
   onClose: () => void;
   employeeId: number;
+  employeeToken: string;
   defaultDate: string;
   onChanged: () => void;
 }) {
@@ -268,7 +270,7 @@ function AddTimeOffDialog({
   const { data: vacations = [], isLoading: loadingList } = useQuery<VacationEntry[]>({
     queryKey: vacationsKey,
     queryFn: async () => {
-      const res = await fetch(apiUrl(`/api/vacations?employeeId=${employeeId}`), { credentials: "include" });
+      const res = await fetch(apiUrl(`/api/employee-timesheet/${employeeId}/vacations?token=${encodeURIComponent(employeeToken)}`), { credentials: "include" });
       if (!res.ok) return [];
       return res.json();
     },
@@ -298,11 +300,11 @@ function AddTimeOffDialog({
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch(apiUrl("/api/vacations"), {
+      const res = await fetch(apiUrl(`/api/employee-timesheet/${employeeId}/vacations?token=${encodeURIComponent(employeeToken)}`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ employeeId, startDate, endDate, vacationType, note: note.trim() || null }),
+        body: JSON.stringify({ startDate, endDate, vacationType, note: note.trim() || null }),
       });
       if (!res.ok) {
         const b = await res.json().catch(() => ({}));
@@ -321,7 +323,7 @@ function AddTimeOffDialog({
     setRemovingId(id);
     setError(null);
     try {
-      const res = await fetch(apiUrl(`/api/vacations/${id}`), { method: "DELETE", credentials: "include" });
+      const res = await fetch(apiUrl(`/api/employee-timesheet/${employeeId}/vacations/${id}?token=${encodeURIComponent(employeeToken)}`), { method: "DELETE", credentials: "include" });
       if (!res.ok && res.status !== 204) throw new Error("Failed to remove time off.");
       refresh();
     } catch (e) {
@@ -1248,6 +1250,7 @@ export function PortalTimesheetGrid({
         open={timeOffOpen}
         onClose={() => setTimeOffOpen(false)}
         employeeId={employeeId}
+        employeeToken={employeeToken}
         defaultDate={startDateStr}
         onChanged={() => queryClient.invalidateQueries({ queryKey: ["portal-timesheet", employeeId] })}
       />

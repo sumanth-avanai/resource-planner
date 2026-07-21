@@ -18,7 +18,6 @@ tags:
   - name: auth
   - name: dashboard
   - name: resourceBookings
-  - name: projectStatus
 
 paths:
   /healthz:
@@ -735,100 +734,9 @@ paths:
                 $ref: "#/components/schemas/DashboardSummary"
 
   # ── Project Status ───────────────────────────────────────────────────────────
-  /project-status:
-    get:
-      operationId: listProjectStatus
-      tags: [projectStatus]
-      summary: List all projects with health status overview
-      responses:
-        "200":
-          description: List of project status rows
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/ProjectStatusRow"
 
-  /project-status/{id}:
-    get:
-      operationId: getProjectStatusDetail
-      tags: [projectStatus]
-      summary: Get detailed status for a single project
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Project status detail
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ProjectStatusDetailResponse"
-        "404":
-          description: Not found
 
-  /project-status/{id}/health-updates:
-    post:
-      operationId: createProjectHealthUpdate
-      tags: [projectStatus]
-      summary: Add a health update entry to a project
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateHealthUpdateBody"
-      responses:
-        "201":
-          description: Created health update
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ProjectHealthUpdate"
-        "404":
-          description: Not found
 
-  /project-status/{id}/next-steps:
-    patch:
-      operationId: patchProjectNextSteps
-      tags: [projectStatus]
-      summary: Persist the next-steps checklist for a project
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PatchNextStepsBody"
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  ok:
-                    type: boolean
-                required:
-                  - ok
-        "404":
-          description: Not found
 
   # ── Employee Auth (Personal Link) ────────────────────────────────────────────
   /auth/employee/verify:
@@ -1029,8 +937,6 @@ components:
           type: ["string", "null"]
         active:
           type: boolean
-        isBillable:
-          type: boolean
         budgetHours:
           type: ["number", "null"]
         startDate:
@@ -1049,7 +955,6 @@ components:
         - name
         - code
         - active
-        - isBillable
         - budgetHours
         - startDate
         - endDate
@@ -1065,8 +970,6 @@ components:
         code:
           type: ["string", "null"]
         active:
-          type: boolean
-        isBillable:
           type: boolean
         budgetHours:
           type: ["number", "null"]
@@ -1094,8 +997,6 @@ components:
         code:
           type: ["string", "null"]
         active:
-          type: boolean
-        isBillable:
           type: boolean
         budgetHours:
           type: ["number", "null"]
@@ -1320,8 +1221,6 @@ components:
           type: ["string", "null"]
         clientName:
           type: ["string", "null"]
-        isBillable:
-          type: ["boolean", "null"]
         roleName:
           type: ["string", "null"]
         entryDate:
@@ -1330,11 +1229,6 @@ components:
         hours:
           type: number
         note:
-          type: ["string", "null"]
-        invoicedAt:
-          type: ["string", "null"]
-          format: date-time
-        billingStatus:
           type: ["string", "null"]
         createdAt:
           type: string
@@ -1350,13 +1244,10 @@ components:
         - projectRoleId
         - projectName
         - clientName
-        - isBillable
         - roleName
         - entryDate
         - hours
         - note
-        - invoicedAt
-        - billingStatus
         - createdAt
         - updatedAt
 
@@ -1475,8 +1366,6 @@ components:
           type: string
         clientName:
           type: string
-        isBillable:
-          type: boolean
         totalHours:
           type: number
         billableHours:
@@ -1487,7 +1376,6 @@ components:
         - projectId
         - projectName
         - clientName
-        - isBillable
         - totalHours
         - billableHours
         - nonBillableHours
@@ -1560,120 +1448,16 @@ components:
         - utilization
 
     # ── Project Status ──────────────────────────────────────────────────────
-    NextStepItem:
-      type: object
-      properties:
-        id:
-          type: string
-        text:
-          type: string
-        done:
-          type: boolean
-      required:
-        - id
-        - text
-        - done
 
-    ProjectStatusRow:
-      type: object
-      properties:
-        id:
-          type: integer
-        name:
-          type: string
-        color:
-          type: ["string", "null"]
-        clientName:
-          type: ["string", "null"]
-        pmName:
-          type: ["string", "null"]
-        generalStatus:
-          type: ["string", "null"]
-        riskLevel:
-          type: ["string", "null"]
-        clientSatisfaction:
-          type: ["string", "null"]
-        latestUpdateAt:
-          type: ["string", "null"]
-          format: date-time
-        latestComment:
-          type: ["string", "null"]
-        budgetTotal:
-          type: ["number", "null"]
-        budgetConsumed:
-          type: ["number", "null"]
-        budgetProgress:
-          type: ["number", "null"]
-        trendDirection:
-          type: ["string", "null"]
-        updateOverdue:
-          type: boolean
-        lastUpdateAge:
-          type: ["integer", "null"]
-        budgetAlert:
-          type: boolean
-        needsAttention:
-          type: boolean
-      required:
-        - id
-        - name
-        - color
-        - clientName
-        - pmName
-        - generalStatus
-        - riskLevel
-        - clientSatisfaction
-        - latestUpdateAt
-        - latestComment
-        - budgetTotal
-        - budgetConsumed
-        - budgetProgress
-        - trendDirection
-        - updateOverdue
-        - lastUpdateAge
-        - budgetAlert
-        - needsAttention
 
-    ProjectHealthUpdate:
-      type: object
-      properties:
-        id:
-          type: integer
-        projectId:
-          type: integer
-        generalStatus:
-          type: string
-        budgetStatus:
-          type: ["string", "null"]
-        riskLevel:
-          type: string
-        clientSatisfaction:
-          type: ["string", "null"]
-        comment:
-          type: ["string", "null"]
-        createdAt:
-          type: string
-          format: date-time
-      required:
-        - id
-        - projectId
-        - generalStatus
-        - riskLevel
-        - createdAt
 
     MonthlyDataPoint:
       type: object
       properties:
         month:
           type: string
-        loggedRevenue:
-          type: number
-        invoicedRevenue:
-          type: number
       required:
         - month
-        - loggedRevenue
-        - invoicedRevenue
 
     FutureBooking:
       type: object
@@ -1701,8 +1485,6 @@ components:
           type: ["integer", "null"]
         roleName:
           type: ["string", "null"]
-        dayRate:
-          type: ["number", "null"]
       required:
         - id
         - employeeId
@@ -1711,116 +1493,5 @@ components:
         - endDate
         - hoursPerDay
 
-    ProjectStatusDetailResponse:
-      type: object
-      properties:
-        project:
-          type: object
-          properties:
-            id:
-              type: integer
-            name:
-              type: string
-            color:
-              type: ["string", "null"]
-            clientId:
-              type: integer
-            clientName:
-              type: ["string", "null"]
-            pmName:
-              type: ["string", "null"]
-            startDate:
-              type: ["string", "null"]
-              format: date
-            endDate:
-              type: ["string", "null"]
-              format: date
-            generalStatus:
-              type: ["string", "null"]
-            riskLevel:
-              type: ["string", "null"]
-            clientSatisfaction:
-              type: ["string", "null"]
-            nextSteps:
-              type: array
-              nullable: true
-              items:
-                $ref: "#/components/schemas/NextStepItem"
-            budgetTotal:
-              type: ["number", "null"]
-            loggedTotal:
-              type: ["number", "null"]
-            invoicedTotal:
-              type: ["number", "null"]
-            trendDirection:
-              type: ["string", "null"]
-            nextUpdateDue:
-              type: ["string", "null"]
-              format: date
-            updateOverdue:
-              type: boolean
-            lastUpdateAge:
-              type: ["integer", "null"]
-            lastCommentAt:
-              type: ["string", "null"]
-              format: date-time
-            budgetAlert:
-              type: boolean
-            budgetProgress:
-              type: ["number", "null"]
-          required:
-            - id
-            - name
-        history:
-          type: array
-          items:
-            $ref: "#/components/schemas/ProjectHealthUpdate"
-        monthlyData:
-          type: array
-          items:
-            $ref: "#/components/schemas/MonthlyDataPoint"
-        futureBookings:
-          type: array
-          items:
-            $ref: "#/components/schemas/FutureBooking"
-        updateCadenceDays:
-          type: integer
-        budgetAlertThreshold:
-          type: number
-      required:
-        - project
-        - history
-        - monthlyData
-        - futureBookings
-        - updateCadenceDays
-        - budgetAlertThreshold
 
-    CreateHealthUpdateBody:
-      type: object
-      properties:
-        generalStatus:
-          type: string
-          enum: [planned, in_progress, on_hold, completed, cancelled]
-        budgetStatus:
-          type: string
-        riskLevel:
-          type: string
-          enum: [low, medium, high]
-        clientSatisfaction:
-          type: string
-          enum: [happy, neutral, critical]
-        comment:
-          type: string
-      required:
-        - generalStatus
-        - riskLevel
 
-    PatchNextStepsBody:
-      type: object
-      properties:
-        nextSteps:
-          type: array
-          items:
-            $ref: "#/components/schemas/NextStepItem"
-      required:
-        - nextSteps
