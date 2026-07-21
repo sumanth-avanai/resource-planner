@@ -7,7 +7,6 @@ export const projectRolesTable = pgTable("project_roles", {
   id: serial("id").primaryKey(),
   projectId: integer("project_id").notNull().references(() => projectsTable.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
-  dayRate: real("day_rate").notNull().default(0),
   budgetedDays: real("budgeted_days"),
   budgetedHours: real("budgeted_hours"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

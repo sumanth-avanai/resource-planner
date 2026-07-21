@@ -9,14 +9,13 @@ export const projectsTable = pgTable("projects", {
   name: text("name").notNull(),
   code: text("code"),
   active: boolean("active").notNull().default(true),
-  isBillable: boolean("is_billable").notNull().default(true),
+  // Budget is expressed in DAYS in the UI (8h = 1 day); stored here in hours for capacity math.
   budgetHours: real("budget_hours"),
   startDate: date("start_date"),
   endDate: date("end_date"),
   color: text("color"),
   pmName: text("pm_name"),
   generalStatus: varchar("general_status", { length: 20 }),
-  budgetStatus: varchar("budget_status", { length: 20 }),
   riskLevel: varchar("risk_level", { length: 20 }),
   clientSatisfaction: varchar("client_satisfaction", { length: 20 }),
   // NEW: lightweight checklist — array of { id, text, done }. Null = no steps yet.

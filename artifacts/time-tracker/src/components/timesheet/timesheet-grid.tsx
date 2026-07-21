@@ -47,7 +47,6 @@ import { RecurringBookingDialog } from "./recurring-booking-dialog";
 interface ProjectRole {
   id: number;
   name: string;
-  dayRate: number;
   budgetedDays: number | null;
   assignedEmployees: { employeeId: number; employeeName: string | null }[];
 }

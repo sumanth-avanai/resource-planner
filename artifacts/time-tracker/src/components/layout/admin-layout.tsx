@@ -20,7 +20,6 @@ import {
   CalendarRange,
   Settings,
   LogOut,
-  Receipt,
   Activity,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -36,7 +35,6 @@ const navItems = [
   { title: "Projects",         href: "/projects",         icon: FolderKanban },
   { title: "Employees",        href: "/employees",        icon: Users },
   { title: "Reports",          href: "/reports",          icon: BarChart3 },
-  { title: "Billing",          href: "/billing",          icon: Receipt },
   { title: "Project Status",   href: "/project-status",   icon: Activity },
 ];
 
@@ -94,7 +92,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
         <Sidebar collapsible="icon" className="border-r border-border/50">
           <SidebarHeader className="h-14 flex items-center justify-between px-3 border-b border-white/5">
             <span className="font-bold text-base tracking-tight gradient-text group-data-[state=collapsed]:hidden select-none">
-              AvaTrack
+              Resource Planner
             </span>
             <SidebarTrigger className="ml-auto group-data-[state=collapsed]:mx-auto text-white/40 hover:text-white/70" />
           </SidebarHeader>

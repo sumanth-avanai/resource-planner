@@ -38,7 +38,6 @@ export interface TimelineSegment {
   color: string;
   projectName: string;
   clientName: string | null;
-  dayRate: number | null;
   bookingStartDate: string;
   bookingEndDate: string;
   notes: string | null;
@@ -364,7 +363,6 @@ export function PlannerRowCells<TVac extends TimelineVacationBase>({
         </div>
         <div className="text-white/80">
           {uniformH != null ? `${fmtH(uniformH)}h/day` : "varies per day"}
-          {seg.dayRate ? ` · €${seg.dayRate.toLocaleString("de-DE")}/day` : ""}
         </div>
         {tentative && <div className="font-medium text-white/90">Tentative</div>}
         {released && (

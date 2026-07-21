@@ -15,8 +15,10 @@ import { Label } from "@/components/ui/label";
 import { TimesheetGrid } from "@/components/timesheet/timesheet-grid";
 import { ResourceBookingsPanel } from "@/components/timesheet/resource-bookings-panel";
 import { AdminTimesheetView } from "@/components/timesheet/admin-timesheet-view";
+import { TeamTimesheetView } from "@/components/timesheet/team-timesheet-view";
 import { startOfWeek, addWeeks, subWeeks } from "date-fns";
 import { useAppAuth } from "@/hooks/use-app-auth";
+import { cn } from "@/lib/utils";
 
 export default function Timesheet() {
   const auth = useAppAuth();
@@ -24,6 +26,7 @@ export default function Timesheet() {
 
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const [tsView, setTsView] = useState<"team" | "entries">("team");
 
   const { data: employees, isLoading } = useListEmployees(
     { includeInactive: false },
@@ -36,8 +39,30 @@ export default function Timesheet() {
     return (
       <AdminLayout>
         <div className="space-y-6 max-w-7xl mx-auto">
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Timesheets</h1>
-          <AdminTimesheetView />
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Timesheets</h1>
+            <div className="inline-flex rounded-md border border-border p-0.5 self-start">
+              <button
+                onClick={() => setTsView("team")}
+                className={cn(
+                  "px-3 py-1 text-sm rounded transition-colors",
+                  tsView === "team" ? "bg-muted font-medium text-foreground" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                Team view
+              </button>
+              <button
+                onClick={() => setTsView("entries")}
+                className={cn(
+                  "px-3 py-1 text-sm rounded transition-colors",
+                  tsView === "entries" ? "bg-muted font-medium text-foreground" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                All entries
+              </button>
+            </div>
+          </div>
+          {tsView === "team" ? <TeamTimesheetView /> : <AdminTimesheetView />}
         </div>
       </AdminLayout>
     );

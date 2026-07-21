@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { AdminLayout } from "@/components/layout/admin-layout";
 import {
   useListEmployees,
@@ -31,6 +31,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton }  from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast }  from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 
@@ -42,6 +43,7 @@ export default function Employees() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen,   setIsEditOpen]   = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
+  const [viewMode, setViewMode] = useState<"pm" | "all">("pm");
 
   const { data: employees, isLoading: employeesLoading } = useListEmployees(
     { includeInactive: true },
@@ -59,6 +61,35 @@ export default function Employees() {
 
   const invalidateList = () =>
     queryClient.invalidateQueries({ queryKey: getListEmployeesQueryKey({ includeInactive: true }) });
+
+  // The generated employees type does not include the derived `pmNames` field
+  // (added by GET /api/employees), so extend the row type locally.
+  type EmployeeRow = NonNullable<typeof employees>[number] & { pmNames?: string[] };
+
+  // Filter-then-group into PM "baskets": an employee with multiple PMs appears
+  // under each of their PMs; employees with no PM go to an "Unassigned" bucket.
+  // Sections are built from members, so empty PM sections never appear.
+  const { pmSections, unassignedEmployees } = useMemo(() => {
+    const rows = (employees ?? []) as EmployeeRow[];
+    const byPm = new Map<string, EmployeeRow[]>();
+    const noPm: EmployeeRow[] = [];
+    for (const emp of rows) {
+      const pms = emp.pmNames ?? [];
+      if (pms.length === 0) {
+        noPm.push(emp);
+      } else {
+        for (const pm of pms) {
+          const bucket = byPm.get(pm);
+          if (bucket) bucket.push(emp);
+          else byPm.set(pm, [emp]);
+        }
+      }
+    }
+    const sections = Array.from(byPm.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([pm, members]) => ({ pm, members }));
+    return { pmSections: sections, unassignedEmployees: noPm };
+  }, [employees]);
 
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -138,6 +169,67 @@ export default function Employees() {
     toast({ title: "Personal link copied" });
   };
 
+  // Single source of truth for an employee row, reused by the flat list and the
+  // grouped view. `rowKey` disambiguates an employee shown under multiple PMs.
+  const renderEmployeeRow = (emp: EmployeeRow, rowKey: React.Key = emp.id) => (
+    <TableRow key={rowKey} className={!emp.active ? "opacity-60" : ""}>
+      <TableCell className="font-semibold">{emp.name}</TableCell>
+      <TableCell className="text-muted-foreground">{emp.email || "—"}</TableCell>
+      <TableCell>{emp.weeklyCapacityHours}h/wk</TableCell>
+      <TableCell className="text-sm">{(emp as any).contractStartDate || <span className="text-muted-foreground">—</span>}</TableCell>
+      <TableCell className="text-sm">{(emp as any).contractEndDate   || <span className="text-muted-foreground">—</span>}</TableCell>
+      <TableCell>
+        <Switch
+          checked={emp.active}
+          onCheckedChange={() => handleToggleActive(emp.id, emp.active)}
+          disabled={updateEmployee.isPending}
+        />
+      </TableCell>
+      <TableCell>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="h-8 w-8 p-0">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => copyLink(emp.personalAccessToken)}>
+              <LinkIcon className="mr-2 h-4 w-4" /> Copy Personal Link
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleResetPin(emp.id)}>
+              <RefreshCw className="mr-2 h-4 w-4" /> Reset PIN
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate(`/employees/${emp.id}`)}>
+              <CalendarOff className="mr-2 h-4 w-4" /> Manage Absences
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => { setSelectedEmployee(emp); setIsEditOpen(true); }}>
+              <Pencil className="mr-2 h-4 w-4" /> Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(emp.id)}>
+              <Trash2 className="mr-2 h-4 w-4" /> Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </TableCell>
+    </TableRow>
+  );
+
+  // Lightweight "basket" header (muted uppercase label) plus its member rows.
+  const renderSection = (label: string, members: EmployeeRow[], keyPrefix: string) => (
+    <Fragment key={`section-${keyPrefix}`}>
+      <TableRow className="hover:bg-transparent">
+        <TableCell
+          colSpan={7}
+          className="bg-muted/50 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+        >
+          {label} · {members.length}
+        </TableCell>
+      </TableRow>
+      {members.map((emp) => renderEmployeeRow(emp, `${keyPrefix}-${emp.id}`))}
+    </Fragment>
+  );
+
   return (
     <AdminLayout>
       <div className="space-y-6 max-w-6xl mx-auto">
@@ -208,6 +300,16 @@ export default function Employees() {
           </Dialog>
         </div>
 
+        {/* View toggle: grouped by PM ("baskets") vs. the flat list */}
+        <div className="flex items-center">
+          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "pm" | "all")}>
+            <TabsList>
+              <TabsTrigger value="pm">By PM</TabsTrigger>
+              <TabsTrigger value="all">All employees</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
         {/* Employee table */}
         <div className="border rounded-md bg-card">
           <Table>
@@ -231,56 +333,20 @@ export default function Employees() {
                     ))}
                   </TableRow>
                 ))
-              ) : employees?.length === 0 ? (
+              ) : (employees?.length ?? 0) === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
                     No employees found.
                   </TableCell>
                 </TableRow>
+              ) : viewMode === "all" ? (
+                ((employees ?? []) as EmployeeRow[]).map((emp) => renderEmployeeRow(emp))
               ) : (
-                employees?.map((emp) => (
-                  <TableRow key={emp.id} className={!emp.active ? "opacity-60" : ""}>
-                    <TableCell className="font-semibold">{emp.name}</TableCell>
-                    <TableCell className="text-muted-foreground">{emp.email || "—"}</TableCell>
-                    <TableCell>{emp.weeklyCapacityHours}h/wk</TableCell>
-                    <TableCell className="text-sm">{(emp as any).contractStartDate || <span className="text-muted-foreground">—</span>}</TableCell>
-                    <TableCell className="text-sm">{(emp as any).contractEndDate   || <span className="text-muted-foreground">—</span>}</TableCell>
-                    <TableCell>
-                      <Switch
-                        checked={emp.active}
-                        onCheckedChange={() => handleToggleActive(emp.id, emp.active)}
-                        disabled={updateEmployee.isPending}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => copyLink(emp.personalAccessToken)}>
-                            <LinkIcon className="mr-2 h-4 w-4" /> Copy Personal Link
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleResetPin(emp.id)}>
-                            <RefreshCw className="mr-2 h-4 w-4" /> Reset PIN
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => navigate(`/employees/${emp.id}`)}>
-                            <CalendarOff className="mr-2 h-4 w-4" /> Manage Absences
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => { setSelectedEmployee(emp); setIsEditOpen(true); }}>
-                            <Pencil className="mr-2 h-4 w-4" /> Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(emp.id)}>
-                            <Trash2 className="mr-2 h-4 w-4" /> Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))
+                <>
+                  {pmSections.map(({ pm, members }) => renderSection(pm, members, `pm-${pm}`))}
+                  {unassignedEmployees.length > 0 &&
+                    renderSection("Unassigned", unassignedEmployees, "unassigned")}
+                </>
               )}
             </TableBody>
           </Table>

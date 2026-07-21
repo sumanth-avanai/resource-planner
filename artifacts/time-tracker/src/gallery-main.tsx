@@ -96,7 +96,7 @@ function Gallery() {
       <div className="min-h-screen bg-bg-soft px-6 py-10">
         <div className="mx-auto flex max-w-[960px] flex-col gap-5">
           <header>
-            <h1 className="m-0 text-[22px] font-semibold text-navy">AvaTrack — shared component library</h1>
+            <h1 className="m-0 text-[22px] font-semibold text-navy">Resource Planner — shared component library</h1>
             <p className="m-0 mt-1 text-[13px] text-muted-foreground">
               Step 2 acceptance gallery · all 16 components, avanai CI tokens · dev-only page
             </p>
@@ -138,9 +138,9 @@ function Gallery() {
 
           <Section title="4 · BudgetBar" note="Threshold-colored (green <70, amber 70–90, red ≥90). Absolute amount always beside percentage.">
             <div className="grid gap-5 sm:grid-cols-3">
-              <BudgetBar total={198000} invoiced={69300} logged={21700} showLegend />
-              <BudgetBar total={100000} invoiced={52000} logged={26000} showLegend />
-              <BudgetBar total={80000} invoiced={60000} logged={14500} showLegend />
+              <BudgetBar total={60} logged={38} showLegend />
+              <BudgetBar total={45} logged={30} showLegend />
+              <BudgetBar total={30} logged={26} showLegend />
             </div>
           </Section>
 
@@ -204,18 +204,18 @@ function Gallery() {
           </Section>
 
           <Section title="11 · ConfirmModal" note="Title + one-line description, primary action right-aligned.">
-            <Button variant="secondary" onClick={() => setModalOpen(true)}>Open “Generate invoice” modal</Button>
+            <Button variant="secondary" onClick={() => setModalOpen(true)}>Open “Confirm release” modal</Button>
             <ConfirmModal
               open={modalOpen}
               onOpenChange={setModalOpen}
-              title="Generate invoice"
-              description="Period: June 2026 · 3 positions · €12,400 total"
-              confirmLabel="Generate invoice"
+              title="Confirm release"
+              description="Period: June 2026 · 3 slots · 15 days total"
+              confirmLabel="Confirm release"
               onConfirm={() => {}}
             >
               <input
                 type="text"
-                placeholder="Invoice reference (optional)"
+                placeholder="Note (optional)"
                 className="w-full rounded-md border border-border-soft px-2.5 py-2 text-[13px]"
               />
             </ConfirmModal>
@@ -226,7 +226,7 @@ function Gallery() {
           </Section>
 
           <Section title="13 · SharedTooltip" note="Navy tooltip for exact labels and dense identifiers.">
-            <SharedTooltip content="Client GmbH · €960/day · Mar 2 – Oct 30">
+            <SharedTooltip content="Client GmbH · 8h/day · Mar 2 – Oct 30">
               <span className="cursor-default text-[13px] font-medium text-brand underline decoration-dotted">
                 Hover for details
               </span>

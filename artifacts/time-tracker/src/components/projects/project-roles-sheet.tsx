@@ -44,7 +44,6 @@ interface ProjectRole {
   id: number;
   projectId: number;
   name: string;
-  dayRate: number;
   budgetedDays: number | null;
   budgetedHours: number | null;
   assignedEmployees: AssignedEmployee[];
@@ -54,33 +53,25 @@ interface BudgetRole extends ProjectRole {
   bookedDays: number;
   plannedHours: number;
   plannedDays: number;
-  budgetValue: number | null;
-  bookedValue: number;
   utilization: number | null;
-  invoicedDays: number;
   reservedDays: number;
   /** Undelivered plan before today — warning flag, never consumption. */
   stalePlanDays?: number;
   unplannedDays: number | null;
   freeDays: number | null;
   remainingBudgetDays: number | null;
-  loggedNotInvoicedDays: number;
 }
 interface BudgetResponse {
   roles: BudgetRole[];
   totals: {
     budgetedDays: number;
     budgetedHours: number;
-    budgetValue: number;
     bookedHours: number;
-    bookedValue: number;
-    invoicedDays: number;
     reservedDays: number;
     stalePlanDays?: number;
     unplannedDays: number;
     freeDays: number;
     remainingBudgetDays: number;
-    loggedNotInvoicedDays: number;
   };
 }
 
@@ -95,18 +86,14 @@ interface AllocationEntry {
 interface AllocationRole {
   roleId: number;
   roleName: string;
-  dayRate: number;
   budgetedDays: number | null;
   plannedDays: number;
   bookedDays: number;
-  invoicedDays: number;
   reservedDays: number;
   stalePlanDays?: number;
   unplannedDays: number | null;
   freeDays: number | null;
   remainingBudgetDays: number | null;
-  budgetValue: number | null;
-  bookedValue: number;
   allocations: AllocationEntry[];
 }
 interface AllocationsResponse {
@@ -116,20 +103,14 @@ interface AllocationsResponse {
     budgetedDays: number;
     plannedDays: number;
     bookedDays: number;
-    invoicedDays: number;
     reservedDays: number;
     unplannedDays: number;
     freeDays: number;
     remainingBudgetDays: number;
-    budgetValue: number;
-    bookedValue: number;
   };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const fmt = (n: number) =>
-  new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
-
 const fmtDays = (d: number) => `${d % 1 === 0 ? d : d.toFixed(1)}d`;
 
 function UtilBadge({ pct }: { pct: number | null }) {
@@ -159,7 +140,6 @@ function UtilBar({ pct }: { pct: number | null }) {
 // ── Role Form ──────────────────────────────────────────────────────────────────
 interface RoleFormState {
   name: string;
-  dayRate: string;
   budgetedDays: string;
   assignedEmployeeIds: number[];
 }
@@ -187,10 +167,8 @@ function RoleModal({
     if (open) setForm(initial);
   }, [open]);
 
-  const dayRate = parseFloat(form.dayRate) || 0;
   const budgDays = parseFloat(form.budgetedDays) || 0;
   const budgHours = budgDays * 8;
-  const budgValue = budgDays * dayRate;
 
   function toggleEmployee(id: number) {
     setForm((f) => ({
@@ -217,17 +195,6 @@ function RoleModal({
             />
           </div>
           <div className="space-y-1.5">
-            <Label>Day Rate (€)</Label>
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              value={form.dayRate}
-              onChange={(e) => setForm((f) => ({ ...f, dayRate: e.target.value }))}
-              placeholder="1356.60"
-            />
-          </div>
-          <div className="space-y-1.5">
             <Label>Budgeted Days <span className="text-muted-foreground">(optional)</span></Label>
             <Input
               type="number"
@@ -239,7 +206,7 @@ function RoleModal({
             />
             {budgDays > 0 && (
               <p className="text-xs text-muted-foreground">
-                = {budgHours}h &nbsp;|&nbsp; {fmt(budgValue)} total
+                = {budgHours}h
               </p>
             )}
           </div>
@@ -267,7 +234,7 @@ function RoleModal({
           <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
           <Button
             onClick={() => onSave(form)}
-            disabled={saving || !form.name.trim() || !form.dayRate}
+            disabled={saving || !form.name.trim()}
           >
             {saving ? "Saving…" : "Save Role"}
           </Button>
@@ -342,7 +309,6 @@ export function ProjectRolesSheet({ project, open, onClose }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: data.name.trim(),
-          dayRate: parseFloat(data.dayRate),
           budgetedDays: data.budgetedDays ? parseFloat(data.budgetedDays) : null,
           budgetedHours: data.budgetedDays ? parseFloat(data.budgetedDays) * 8 : null,
           assignedEmployeeIds: data.assignedEmployeeIds,
@@ -361,7 +327,6 @@ export function ProjectRolesSheet({ project, open, onClose }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: data.name.trim(),
-          dayRate: parseFloat(data.dayRate),
           budgetedDays: data.budgetedDays ? parseFloat(data.budgetedDays) : null,
           budgetedHours: data.budgetedDays ? parseFloat(data.budgetedDays) * 8 : null,
           assignedEmployeeIds: data.assignedEmployeeIds,
@@ -383,7 +348,6 @@ export function ProjectRolesSheet({ project, open, onClose }: Props) {
 
   // Totals for roles tab footer
   const totalBudgetDays = roles.reduce((s, r) => s + (r.budgetedDays ?? 0), 0);
-  const totalBudgetValue = roles.reduce((s, r) => s + (r.budgetedDays ?? 0) * r.dayRate, 0);
 
   return (
     <>
@@ -425,7 +389,6 @@ export function ProjectRolesSheet({ project, open, onClose }: Props) {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Role</TableHead>
-                          <TableHead className="text-right">Day Rate</TableHead>
                           <TableHead className="text-right">Budget</TableHead>
                           <TableHead>Assigned</TableHead>
                           <TableHead className="w-[80px]"></TableHead>
@@ -435,9 +398,6 @@ export function ProjectRolesSheet({ project, open, onClose }: Props) {
                         {roles.map((role) => (
                           <TableRow key={role.id}>
                             <TableCell className="font-medium">{role.name}</TableCell>
-                            <TableCell className="text-right font-mono text-sm">
-                              {fmt(role.dayRate)}
-                            </TableCell>
                             <TableCell className="text-right text-sm text-muted-foreground">
                               {role.budgetedDays != null
                                 ? `${fmtDays(role.budgetedDays)} (${role.budgetedDays * 8}h)`
@@ -487,7 +447,7 @@ export function ProjectRolesSheet({ project, open, onClose }: Props) {
                   </div>
                   {totalBudgetDays > 0 && (
                     <div className="text-sm text-muted-foreground text-right">
-                      Total: {fmtDays(totalBudgetDays)} &nbsp;|&nbsp; {fmt(totalBudgetValue)}
+                      Total: {fmtDays(totalBudgetDays)}
                     </div>
                   )}
                 </>
@@ -516,13 +476,13 @@ export function ProjectRolesSheet({ project, open, onClose }: Props) {
                           <TableHead className="text-right">
                             <span className="inline-flex items-center gap-1">Budget
                               <Info className="h-3 w-3 text-muted-foreground/60" aria-label="Budget info" role="img">
-                                <title>Days budgeted for this role (× day rate = value). Identity: Budget = Logged + Re-plannable + Unplanned.</title>
+                                <title>Days budgeted for this role. Identity: Budget = Logged + Re-plannable + Unplanned.</title>
                               </Info></span>
                           </TableHead>
                           <TableHead className="text-right">
-                            <span className="inline-flex items-center gap-1">Invoiced
-                              <Info className="h-3 w-3 text-muted-foreground/60" aria-label="Invoiced info" role="img">
-                                <title>Delivered work already billed. A billing overlay — it never changes how much you can book.</title>
+                            <span className="inline-flex items-center gap-1">Logged
+                              <Info className="h-3 w-3 text-muted-foreground/60" aria-label="Logged info" role="img">
+                                <title>Delivered work logged against this role so far.</title>
                               </Info></span>
                           </TableHead>
                           <TableHead className="text-right">
@@ -551,12 +511,9 @@ export function ProjectRolesSheet({ project, open, onClose }: Props) {
                             <TableCell className="font-medium">{role.name}</TableCell>
                             <TableCell className="text-right text-sm text-muted-foreground">
                               {role.budgetedDays != null ? fmtDays(role.budgetedDays) : "—"}
-                              {role.budgetValue != null && (
-                                <div className="text-xs text-muted-foreground/70">{fmt(role.budgetValue)}</div>
-                              )}
                             </TableCell>
                             <TableCell className="text-right text-sm">
-                              <span className="text-foreground">{fmtDays(role.invoicedDays)}</span>
+                              <span className="text-foreground">{fmtDays(role.bookedDays)}</span>
                             </TableCell>
                             <TableCell className="text-right text-sm">
                               <span className="text-blue-600 dark:text-blue-400">{fmtDays(role.reservedDays)}</span>
@@ -586,18 +543,17 @@ export function ProjectRolesSheet({ project, open, onClose }: Props) {
                   </div>
 
                   {/* Stacked-bar identity visualisation per role.
-                      Four segments: Invoiced + Logged (not invoiced) + Re-plannable
-                      + Unplanned. When consumption + commitments exceed the budget,
-                      the bar fills completely, a red overflow segment shows the
-                      overrun, and a tick marks where the budget ends — so an
-                      over-committed role can never look like open capacity. */}
+                      Three segments: Logged + Re-plannable + Unplanned. When
+                      consumption + commitments exceed the budget, the bar fills
+                      completely, a red overflow segment shows the overrun, and a
+                      tick marks where the budget ends — so an over-committed role
+                      can never look like open capacity. */}
                   <div className="space-y-3">
                     {budget.roles.filter((r) => r.budgetedDays != null && r.budgetedDays > 0).map((role) => {
                       const b = role.budgetedDays!;
-                      const invoiced = Math.max(0, role.invoicedDays);
-                      const delivered = Math.max(0, role.loggedNotInvoicedDays); // logged, not yet invoiced
+                      const logged = Math.max(0, role.bookedDays);
                       const committed = Math.max(0, role.reservedDays);
-                      const used = invoiced + delivered + committed;
+                      const used = logged + committed;
                       const over = Math.max(0, Math.round((used - b) * 10) / 10);
                       const unplanned = Math.max(0, role.unplannedDays ?? 0);
                       const scale = Math.max(b, used); // over-budget bars extend past the budget tick
@@ -613,18 +569,11 @@ export function ProjectRolesSheet({ project, open, onClose }: Props) {
                             )}
                           </div>
                           <div className="relative flex h-3 rounded-full overflow-hidden bg-muted">
-                            {invoiced > 0 && (
+                            {logged > 0 && (
                               <div
-                                title={`Invoiced: ${fmtDays(invoiced)}`}
-                                style={{ width: `${pct(invoiced)}%` }}
+                                title={`Logged: ${fmtDays(logged)}`}
+                                style={{ width: `${pct(logged)}%` }}
                                 className="bg-green-500 dark:bg-green-600"
-                              />
-                            )}
-                            {delivered > 0 && (
-                              <div
-                                title={`Logged, not invoiced: ${fmtDays(delivered)}`}
-                                style={{ width: `${pct(delivered)}%` }}
-                                className="bg-amber-400 dark:bg-amber-500"
                               />
                             )}
                             {committed > 0 && (
@@ -660,8 +609,7 @@ export function ProjectRolesSheet({ project, open, onClose }: Props) {
                             )}
                           </div>
                           <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                            <span><span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1" />Invoiced {fmtDays(invoiced)}</span>
-                            <span><span className="inline-block w-2 h-2 rounded-full bg-amber-400 mr-1" />Logged (not invoiced) {fmtDays(delivered)}</span>
+                            <span><span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1" />Logged {fmtDays(logged)}</span>
                             <span><span className="inline-block w-2 h-2 rounded-full bg-blue-400 mr-1" />Re-plannable {fmtDays(committed)}</span>
                             {over > 0 ? (
                               <span className="font-medium text-destructive"><span className="inline-block w-2 h-2 rounded-full bg-red-500 mr-1" />Over by {fmtDays(over)}</span>
@@ -682,15 +630,10 @@ export function ProjectRolesSheet({ project, open, onClose }: Props) {
                   {/* Totals summary card */}
                   <div className="rounded-lg border bg-muted/30 p-4 text-sm space-y-3">
                     <div className="font-semibold text-foreground">Project Total</div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                       <div>
                         <div className="text-xs text-muted-foreground">Budget</div>
                         <div className="font-medium">{fmtDays(budget.totals.budgetedDays)}</div>
-                        <div className="text-xs text-muted-foreground">{fmt(budget.totals.budgetValue)}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-muted-foreground">Invoiced</div>
-                        <div className="font-medium text-green-700 dark:text-green-400">{fmtDays(budget.totals.invoicedDays)}</div>
                       </div>
                       <div>
                         <div className="text-xs text-muted-foreground">Re-plannable</div>
@@ -705,7 +648,6 @@ export function ProjectRolesSheet({ project, open, onClose }: Props) {
                       <div>
                         <div className="text-xs text-muted-foreground">Logged total</div>
                         <div className="font-medium">{fmtDays(budget.totals.bookedHours / 8)}</div>
-                        <div className="text-xs text-muted-foreground">{fmt(budget.totals.bookedValue)}</div>
                       </div>
                       <div>
                         <div className="text-xs text-muted-foreground">Free (not logged)</div>
@@ -750,7 +692,7 @@ export function ProjectRolesSheet({ project, open, onClose }: Props) {
                             <div className="font-semibold text-sm text-foreground">{role.roleName}</div>
                             <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground mt-0.5">
                               <span>Budget: <span className="text-foreground">{role.budgetedDays != null ? fmtDays(role.budgetedDays) : "—"}</span></span>
-                              <span>Invoiced: <span className="text-green-700 dark:text-green-400 font-medium">{fmtDays(role.invoicedDays)}</span></span>
+                              <span>Logged: <span className="text-green-700 dark:text-green-400 font-medium">{fmtDays(role.bookedDays)}</span></span>
                               <span>Re-plannable: <span className="text-blue-600 dark:text-blue-400 font-medium">{fmtDays(role.reservedDays)}</span></span>
                               {role.unplannedDays != null && (
                                 <span>Unplanned: <span className={`font-medium ${role.unplannedDays < 0 ? "text-destructive" : "text-foreground"}`}>{fmtDays(role.unplannedDays)}</span></span>
@@ -819,11 +761,10 @@ export function ProjectRolesSheet({ project, open, onClose }: Props) {
                       <div>
                         <div className="text-xs text-muted-foreground">Budget</div>
                         <div className="font-medium">{fmtDays(allocations.totals.budgetedDays)}</div>
-                        <div className="text-xs text-muted-foreground">{fmt(allocations.totals.budgetValue)}</div>
                       </div>
                       <div>
-                        <div className="text-xs text-muted-foreground">Invoiced</div>
-                        <div className="font-medium text-green-700 dark:text-green-400">{fmtDays(allocations.totals.invoicedDays)}</div>
+                        <div className="text-xs text-muted-foreground">Logged</div>
+                        <div className="font-medium text-green-700 dark:text-green-400">{fmtDays(allocations.totals.bookedDays)}</div>
                       </div>
                       <div>
                         <div className="text-xs text-muted-foreground">Re-plannable</div>
@@ -846,7 +787,7 @@ export function ProjectRolesSheet({ project, open, onClose }: Props) {
       <RoleModal
         open={addOpen}
         title="Add Role"
-        initial={{ name: "", dayRate: "", budgetedDays: "", assignedEmployeeIds: [] }}
+        initial={{ name: "", budgetedDays: "", assignedEmployeeIds: [] }}
         employees={activeEmployees}
         onClose={() => setAddOpen(false)}
         onSave={(data) => createRole.mutate(data)}
@@ -861,11 +802,10 @@ export function ProjectRolesSheet({ project, open, onClose }: Props) {
           editRole
             ? {
                 name: editRole.name,
-                dayRate: String(editRole.dayRate),
                 budgetedDays: editRole.budgetedDays != null ? String(editRole.budgetedDays) : "",
                 assignedEmployeeIds: editRole.assignedEmployees.map((a) => a.employeeId),
               }
-            : { name: "", dayRate: "", budgetedDays: "", assignedEmployeeIds: [] }
+            : { name: "", budgetedDays: "", assignedEmployeeIds: [] }
         }
         employees={activeEmployees}
         onClose={() => setEditRole(null)}

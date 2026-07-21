@@ -1,8 +1,10 @@
-# AvaTrack — Internal Time Tracker
+# Resource Planner (forked from AvaTrack)
+
+> **⚠️ This project was reworked into a money-free "Resource Planner".** Billing, invoicing, day rates, and revenue were removed; budgets are now in **days**; PM→team groupings (derived, many-to-many) were added to the Employees, Timesheet, and Resource panels; absences are wired in the Resource panel. The frontend + mock layer + Drizzle schema are updated; the **api-server + OpenAPI still need the same money removal** before deploying. **See `HANDOVER.md` at the repo root for the full changelog and the Replit rewiring checklist.** The sections below still describe the original AvaTrack and are kept for reference until the backend is rewired.
 
 ## Overview
 
-A lightweight internal time-tracking web app for small agencies, branded as **AvaTrack** with Avanai colors (purple #8B5CF6 / cyan #06B6D4 gradient). Feels like a premium SaaS tool (Linear/Vercel aesthetic), not a heavy ERP. Inspired by Productive/MOCO but much simpler.
+A lightweight internal time-tracking web app for small agencies, originally branded as **AvaTrack** with Avanai colors (purple #8B5CF6 / cyan #06B6D4 gradient). Feels like a premium SaaS tool (Linear/Vercel aesthetic), not a heavy ERP. Inspired by Productive/MOCO but much simpler.
 
 ## Stack
 

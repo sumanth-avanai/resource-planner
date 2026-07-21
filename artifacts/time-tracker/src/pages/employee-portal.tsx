@@ -86,7 +86,7 @@ export default function EmployeePortal() {
           <div className="p-2 rounded-md" style={{ background: "var(--gradient-brand)" }}>
             <Clock className="h-5 w-5 text-white" />
           </div>
-          <span className="text-xl font-bold tracking-tight gradient-text">AvaTrack</span>
+          <span className="text-xl font-bold tracking-tight gradient-text">Resource Planner</span>
         </div>
         
         <Card className="w-full max-w-sm shadow-md">
@@ -130,7 +130,7 @@ export default function EmployeePortal() {
             <div className="p-1.5 rounded-md" style={{ background: "var(--gradient-brand)" }}>
               <Clock className="h-4 w-4 text-white" />
             </div>
-            <span className="text-base font-bold tracking-tight gradient-text">AvaTrack</span>
+            <span className="text-base font-bold tracking-tight gradient-text">Resource Planner</span>
           </div>
           <div className="flex items-center gap-4">
             <span className="text-xs font-medium text-muted-foreground">{employee.name}</span>

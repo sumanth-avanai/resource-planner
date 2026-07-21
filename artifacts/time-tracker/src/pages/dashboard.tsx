@@ -1,7 +1,7 @@
 import { useGetDashboardSummary, getGetDashboardSummaryQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { format } from "date-fns";
-import { Clock, Briefcase, Activity } from "lucide-react";
+import { Clock, Activity } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AdminLayout } from "@/components/layout/admin-layout";
 
@@ -15,8 +15,7 @@ export default function Dashboard() {
       <AdminLayout>
         <div className="space-y-6">
           <Skeleton className="h-8 w-48" />
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Skeleton className="h-32" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Skeleton className="h-32" />
             <Skeleton className="h-32" />
           </div>
@@ -33,7 +32,7 @@ export default function Dashboard() {
     0
   );
   const totalUtilization = totalAvailableHours > 0
-    ? (summary.billableBookedHours / totalAvailableHours) * 100
+    ? (summary.totalBookedHours / totalAvailableHours) * 100
     : 0;
 
   return (
@@ -46,7 +45,7 @@ export default function Dashboard() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Hours</CardTitle>
@@ -59,22 +58,12 @@ export default function Dashboard() {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Billable Hours</CardTitle>
-              <Briefcase className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{summary.billableBookedHours.toFixed(1)}</div>
-              <p className="text-xs text-muted-foreground mt-1">Invoiced this week</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Utilization</CardTitle>
               <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{totalUtilization.toFixed(1)}%</div>
-              <p className="text-xs text-muted-foreground mt-1">Billable / Available</p>
+              <p className="text-xs text-muted-foreground mt-1">Booked / Available</p>
             </CardContent>
           </Card>
         </div>
@@ -88,23 +77,19 @@ export default function Dashboard() {
                   <div className="font-semibold">{emp.employeeName}</div>
                   <div className="text-xs text-muted-foreground">Capacity: {emp.availableHours}h</div>
                 </div>
-                <div className="p-4 grid grid-cols-2 gap-4">
+                <div className="p-4 space-y-4">
                   <div>
                     <div className="text-sm text-muted-foreground mb-1">Booked</div>
                     <div className="font-medium">{emp.bookedHours.toFixed(1)}h</div>
                   </div>
                   <div>
-                    <div className="text-sm text-muted-foreground mb-1">Billable</div>
-                    <div className="font-medium">{emp.billableHours.toFixed(1)}h</div>
-                  </div>
-                  <div className="col-span-2">
                     <div className="flex justify-between text-xs mb-1">
                       <span className="text-muted-foreground">Utilization</span>
                       <span className="font-medium">{emp.utilization.toFixed(0)}%</span>
                     </div>
                     <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-primary" 
+                      <div
+                        className="h-full bg-primary"
                         style={{ width: `${Math.min(100, emp.utilization)}%` }}
                       />
                     </div>

@@ -49,7 +49,6 @@ type BulkActionType = "change_project" | "change_role";
 interface ProjectRole {
   id: number;
   name: string;
-  dayRate: number;
 }
 
 interface EditState {

@@ -125,7 +125,6 @@ type Project = {
   name: string;
   code: string | null;
   active: boolean;
-  isBillable: boolean;
   budgetHours: number | null;
   color: string | null;
   pmName: string | null;
@@ -321,7 +320,7 @@ export default function Projects() {
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const budgetHours = formData.get("budgetHours") as string;
+    const budgetDays = formData.get("budgetDays") as string;
 
     createProject.mutate(
       {
@@ -329,9 +328,8 @@ export default function Projects() {
           name: formData.get("name") as string,
           clientId: Number(formData.get("clientId")),
           code: (formData.get("code") as string) || null,
-          isBillable: formData.get("isBillable") === "on",
           active: formData.get("active") === "on",
-          budgetHours: budgetHours ? Number(budgetHours) : null,
+          budgetHours: budgetDays ? Number(budgetDays) * 8 : null,
           color: createColor,
           pmName: createPmName && createPmName !== "__none__" ? createPmName : null,
         },
@@ -351,7 +349,7 @@ export default function Projects() {
     e.preventDefault();
     if (!selectedProject) return;
     const formData = new FormData(e.currentTarget);
-    const budgetHours = formData.get("budgetHours") as string;
+    const budgetDays = formData.get("budgetDays") as string;
 
     updateProject.mutate(
       {
@@ -360,9 +358,8 @@ export default function Projects() {
           name: formData.get("name") as string,
           clientId: Number(formData.get("clientId")),
           code: (formData.get("code") as string) || null,
-          isBillable: formData.get("isBillable") === "on",
           active: formData.get("active") === "on",
-          budgetHours: budgetHours ? Number(budgetHours) : null,
+          budgetHours: budgetDays ? Number(budgetDays) * 8 : null,
           color: editColor,
           pmName: editPmName && editPmName !== "__none__" ? editPmName : null,
         },
@@ -580,8 +577,8 @@ export default function Projects() {
                   <Input id="code" name="code" placeholder="WR-2024" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="budgetHours">Budget Hours (Optional)</Label>
-                  <Input id="budgetHours" name="budgetHours" type="number" step="0.5" placeholder="100" />
+                  <Label htmlFor="budgetDays">Budget Days (Optional)</Label>
+                  <Input id="budgetDays" name="budgetDays" type="number" step="0.5" placeholder="10" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="pmName">PM (Optional)</Label>
@@ -601,15 +598,9 @@ export default function Projects() {
                   <Label>Project Color</Label>
                   <ColorPicker value={createColor} onChange={setCreateColor} />
                 </div>
-                <div className="flex items-center space-x-6">
-                  <div className="flex items-center space-x-2">
-                    <Switch id="isBillable" name="isBillable" defaultChecked />
-                    <Label htmlFor="isBillable">Billable</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Switch id="active" name="active" defaultChecked />
-                    <Label htmlFor="active">Active</Label>
-                  </div>
+                <div className="flex items-center space-x-2">
+                  <Switch id="active" name="active" defaultChecked />
+                  <Label htmlFor="active">Active</Label>
                 </div>
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>
@@ -851,13 +842,13 @@ export default function Projects() {
                   <Input id="edit-code" name="code" defaultValue={selectedProject.code || ""} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-budgetHours">Budget Hours</Label>
+                  <Label htmlFor="edit-budgetDays">Budget Days</Label>
                   <Input
-                    id="edit-budgetHours"
-                    name="budgetHours"
+                    id="edit-budgetDays"
+                    name="budgetDays"
                     type="number"
                     step="0.5"
-                    defaultValue={selectedProject.budgetHours ?? ""}
+                    defaultValue={selectedProject.budgetHours != null ? selectedProject.budgetHours / 8 : ""}
                   />
                 </div>
                 <div className="space-y-2">
@@ -882,23 +873,13 @@ export default function Projects() {
                   <Label>Project Color</Label>
                   <ColorPicker value={editColor} onChange={setEditColor} />
                 </div>
-                <div className="flex items-center space-x-6">
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="edit-isBillable"
-                      name="isBillable"
-                      defaultChecked={selectedProject.isBillable}
-                    />
-                    <Label htmlFor="edit-isBillable">Billable</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="edit-active"
-                      name="active"
-                      defaultChecked={selectedProject.active}
-                    />
-                    <Label htmlFor="edit-active">Active</Label>
-                  </div>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="edit-active"
+                    name="active"
+                    defaultChecked={selectedProject.active}
+                  />
+                  <Label htmlFor="edit-active">Active</Label>
                 </div>
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)}>
@@ -926,7 +907,7 @@ export default function Projects() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="client-notes">Notes</Label>
-                <Textarea id="client-notes" name="notes" placeholder="Billing details, contacts, etc." />
+                <Textarea id="client-notes" name="notes" placeholder="Notes, contacts, etc." />
               </div>
               <div className="flex items-center space-x-2">
                 <Switch id="client-active" name="active" defaultChecked />

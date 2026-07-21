@@ -73,6 +73,7 @@ import {
   Star,
   Thermometer,
   Ban,
+  Users,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -100,7 +101,6 @@ import { PlannerRowCells, PLANNER_ROW_HEIGHT } from "./resource-planner-timeline
 interface ProjectRole {
   id: number;
   name: string;
-  dayRate: number;
   budgetedDays: number | null;
   assignedEmployees: { employeeId: number; employeeName: string | null }[];
 }
@@ -111,7 +111,6 @@ interface ResourceBookingFull {
   projectId: number;
   projectRoleId: number | null;
   projectRoleName: string | null;
-  dayRate: number | null;
   startDate: string;
   endDate: string;
   hoursPerDay: number;
@@ -162,6 +161,7 @@ function snapToZoom(date: Date, z: ZoomLevel): Date {
   }
 }
 const EMPLOYEE_COL = 200;
+const PM_UNASSIGNED = "Unassigned";
 const ROW_HEIGHT = 40;
 const SIDE_BUFFER_DAYS = 30;
 
@@ -173,7 +173,6 @@ interface SegmentBase {
   color: string;
   projectName: string;
   clientName: string | null;
-  dayRate: number | null;
   bookingStartDate: string;
   bookingEndDate: string;
   notes: string | null;
@@ -229,7 +228,6 @@ function buildBookingSegments(
     color,
     projectName: booking.projectName,
     clientName: booking.clientName,
-    dayRate: booking.dayRate,
     bookingStartDate: booking.startDate,
     bookingEndDate: booking.endDate,
     notes: booking.notes,
@@ -1045,21 +1043,17 @@ function BookingModal({
     employeeName: string;
     days: number;
     loggedDays: number;
-    invoicedDays: number;
   }
   interface RoleBudgetStatus {
     budgetedDays: number | null;
     plannedDays: number;
     loggedDays: number;
-    invoicedDays: number;
     reservedDays: number;
     stalePlanDays: number;
     unplannedDays: number | null;
     freeDays: number | null;
     remainingBudgetDays: number | null;
-    loggedNotInvoicedDays: number;
     employeeLoggedDays: number | null;
-    employeeInvoicedDays: number | null;
     bookings: RoleBudgetBooking[];
   }
   // Role budget is fetched LIVE — the slot being edited is NOT excluded, so
@@ -1755,10 +1749,7 @@ function BookingModal({
                           </SelectLabel>
                           {assignedRoles.map((r) => {
                             const label =
-                              r.name +
-                              (r.dayRate > 0
-                                ? ` — €${r.dayRate.toLocaleString("de-DE")}/day`
-                                : "");
+                              r.name;
                             return (
                               <SelectItem key={r.id} value={String(r.id)}>
                                 <span
@@ -1783,10 +1774,7 @@ function BookingModal({
                               </SelectLabel>
                               {unassignedRoles.map((r) => {
                                 const label =
-                                  r.name +
-                                  (r.dayRate > 0
-                                    ? ` — €${r.dayRate.toLocaleString("de-DE")}/day`
-                                    : "");
+                                  r.name;
                                 return (
                                   <SelectItem key={r.id} value={String(r.id)}>
                                     <span
@@ -1805,10 +1793,7 @@ function BookingModal({
                     ) : (
                       projectRoles!.map((r) => {
                         const label =
-                          r.name +
-                          (r.dayRate > 0
-                            ? ` — €${r.dayRate.toLocaleString("de-DE")}/day`
-                            : "");
+                          r.name;
                         return (
                           <SelectItem key={r.id} value={String(r.id)}>
                             <span
@@ -2511,7 +2496,6 @@ function BookingModal({
             const {
               budgetedDays,
               loggedDays,
-              invoicedDays,
               reservedDays,
               stalePlanDays,
               unplannedDays,
@@ -2600,7 +2584,6 @@ function BookingModal({
                         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                           <div className="flex justify-between"><span className="text-muted-foreground">Budgeted</span><span className="font-medium">{budgetedNum}d</span></div>
                           <div className="flex justify-between"><span className="text-muted-foreground">Logged</span><span>{r1(loggedDays)}d</span></div>
-                          <div className="flex justify-between"><span className="text-muted-foreground">Invoiced</span><span>{r1(invoicedDays)}d</span></div>
                           <div className="flex justify-between"><span className="text-muted-foreground">Re-plannable</span><span className="text-blue-600 dark:text-blue-400 font-medium">{r1(reservedDays)}d</span></div>
                           <div className={`flex justify-between ${statusColor(unplanned)}`}><span>Unplanned</span><span className="font-medium">{r1(unplanned)}d</span></div>
                           <div className="flex justify-between"><span className="text-muted-foreground">Free</span><span>{freeDays != null ? r1(freeDays) + "d" : "—"}</span></div>
@@ -2900,8 +2883,7 @@ function BookingModal({
               {`Re-plannable = Σ max(Planned − Logged, 0)   (today onwards, per day ÷ 8)
 Stale plan   = Σ max(Planned − Logged, 0)   (before today — flag, not consumption)
 Unplanned    = Budget − Logged − Re-plannable
-Free         = Budget − Logged        (operational: real work left)
-Remaining    = Budget − Invoiced      (finance: budget not yet billed)`}
+Free         = Budget − Logged        (operational: real work left)`}
             </pre>
           </div>
 
@@ -2913,12 +2895,10 @@ Remaining    = Budget − Invoiced      (finance: budget not yet billed)`}
                   ["Budget", "Days budgeted for the role."],
                   ["Planned", "Days booked across all slots (Σ planned hours ÷ 8)."],
                   ["Logged", "Hours recorded in timesheets ÷ 8."],
-                  ["Invoiced", "Logged days already billed. A billing overlay — never moves capacity."],
                   ["Re-plannable", "Future planned work not yet delivered; movable."],
                   ["Stale plan", "Booked days before today that were never delivered. A warning to release or re-plan — not consumption."],
                   ["Unplanned", "Budget − Logged − Re-plannable: what you can still book. Negative = over-committed."],
                   ["Free", "Real work left before the budget is burnt."],
-                  ["Remaining", "Budget not yet locked/billed (finance view)."],
                 ].map(([term, desc]) => (
                   <tr key={term} className="border-b border-border/40 last:border-0">
                     <td className="py-1.5 pr-3 font-medium text-foreground whitespace-nowrap align-top w-[130px]">{term}</td>
@@ -3862,7 +3842,34 @@ export default function ResourcePlannerPage() {
 
   // All employees stay visible at fixed row height (empty rows show an
   // "Available" label); the project filter hides segments, not people.
-  const visibleEmployees = activeEmployees;
+  // Rows are grouped by PM (derived, many-to-many): each employee is placed
+  // under their PRIMARY pm (first of pmNames) so there is exactly one row per
+  // person. A group header is rendered at each PM boundary (see the row map).
+  const pmKeyOf = useCallback(
+    (emp: any): string =>
+      emp?.pmNames && emp.pmNames.length ? String(emp.pmNames[0]) : PM_UNASSIGNED,
+    [],
+  );
+  const visibleEmployees = useMemo(() => {
+    return [...activeEmployees].sort((a: any, b: any) => {
+      const pa = pmKeyOf(a);
+      const pb = pmKeyOf(b);
+      if (pa !== pb) {
+        if (pa === PM_UNASSIGNED) return 1;
+        if (pb === PM_UNASSIGNED) return -1;
+        return pa.localeCompare(pb);
+      }
+      return String(a?.name ?? "").localeCompare(String(b?.name ?? ""));
+    });
+  }, [activeEmployees, pmKeyOf]);
+  const pmGroupCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const e of visibleEmployees) {
+      const k = pmKeyOf(e);
+      m.set(k, (m.get(k) ?? 0) + 1);
+    }
+    return m;
+  }, [visibleEmployees, pmKeyOf]);
 
   // Segments visible under the current project filter (unchecked → hidden).
   const filteredSegmentsByEmployee = useMemo(() => {
@@ -4324,7 +4331,7 @@ export default function ResourcePlannerPage() {
               </div>
             )}
 
-            {visibleEmployees.map((emp: any) => {
+            {visibleEmployees.flatMap((emp: any, empIdx: number) => {
               const empId: number = emp.id;
               const empBookings = bookingsByEmployee[empId] ?? [];
               const cap: number = emp.weeklyCapacityHours ?? 40;
@@ -4345,7 +4352,31 @@ export default function ResourcePlannerPage() {
                 (holidaysByEmployee[empId] ?? []).map((h) => [h.date, h.name] as const),
               );
 
-              return (
+              const pmGroupKey = pmKeyOf(emp);
+              const showGroupHeader =
+                empIdx === 0 || pmKeyOf(visibleEmployees[empIdx - 1]) !== pmGroupKey;
+
+              return [
+                showGroupHeader ? (
+                  <div
+                    key={`pm-${pmGroupKey}`}
+                    className="flex items-center border-y border-border bg-muted/25"
+                    style={{ width: EMPLOYEE_COL + contentWidth, minHeight: 30 }}
+                  >
+                    <div
+                      className="sticky left-0 z-20 bg-muted/40 self-stretch flex items-center gap-2 px-3 border-r border-border"
+                      style={{ width: EMPLOYEE_COL }}
+                    >
+                      <Users className="h-3.5 w-3.5 text-muted-foreground shrink-0" strokeWidth={1.5} />
+                      <span className="text-xs font-semibold text-foreground truncate">
+                        {pmGroupKey === PM_UNASSIGNED ? "Unassigned" : pmGroupKey}
+                      </span>
+                      <span className="ml-auto text-[11px] text-muted-foreground shrink-0">
+                        {pmGroupCounts.get(pmGroupKey) ?? 0}
+                      </span>
+                    </div>
+                  </div>
+                ) : null,
                 <div
                   key={empId}
                   className="flex border-b border-border group"
@@ -4509,8 +4540,8 @@ export default function ResourcePlannerPage() {
                       />
                     )}
                   </div>
-                </div>
-              );
+                </div>,
+              ];
             })}
           </div>
         </div>

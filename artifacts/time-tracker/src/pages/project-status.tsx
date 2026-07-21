@@ -67,57 +67,6 @@ function TrendArrow({ direction }: { direction: "up" | "down" | "stable" | null 
   return null;
 }
 
-// ─── Euro formatter ───────────────────────────────────────────────────────────
-
-function fmtEuro(v: number): string {
-  if (v >= 1000) {
-    const k = v / 1000;
-    return `€${k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)}k`;
-  }
-  return `€${Math.round(v)}`;
-}
-
-// ─── Budget mini-bar ──────────────────────────────────────────────────────────
-
-function BudgetCell({
-  budgetTotal,
-  budgetConsumed,
-}: {
-  budgetTotal: number | null;
-  budgetConsumed: number | null;
-  budgetAlert: boolean;
-}) {
-  if (!budgetTotal || budgetTotal === 0) {
-    return <span className="text-muted-foreground/40 text-xs">—</span>;
-  }
-  const consumed = budgetConsumed ?? 0;
-  if (consumed === 0) {
-    return <span className="text-muted-foreground/40 text-xs">No hours yet</span>;
-  }
-  const pct = Math.round((consumed / budgetTotal) * 100);
-  const barColor =
-    pct >= 90 ? "bg-red-500" : pct >= 70 ? "bg-amber-500" : "bg-green-500";
-  const textColor =
-    pct >= 90 ? "text-red-400" : pct >= 70 ? "text-amber-400" : "text-green-400";
-  return (
-    <div className="flex flex-col gap-1 min-w-[96px]">
-      <div className="h-1.5 bg-white/8 rounded-full overflow-hidden relative">
-        <div
-          className={cn("h-full rounded-full transition-all", barColor)}
-          style={{ width: `${Math.min(100, pct)}%` }}
-        />
-        <div className="absolute top-0 bottom-0 w-px bg-white/20" style={{ left: "90%" }} />
-      </div>
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {fmtEuro(consumed)} / {fmtEuro(budgetTotal)}
-        </span>
-        <span className={cn("text-xs font-medium tabular-nums", textColor)}>{pct}%</span>
-      </div>
-    </div>
-  );
-}
-
 // ─── Updated cell ─────────────────────────────────────────────────────────────
 
 function UpdatedCell({
@@ -328,9 +277,8 @@ export default function ProjectStatus() {
   const kpis = useMemo(() => {
     const active       = rows.filter((r) => r.generalStatus !== "completed" && r.generalStatus !== "cancelled");
     const attention    = active.filter((r) => r.needsAttention);
-    const budgetAlerts = active.filter((r) => r.budgetAlert);
     const overdue      = active.filter((r) => r.updateOverdue);
-    return { total: active.length, attention: attention.length, budgetAlerts: budgetAlerts.length, overdue: overdue.length };
+    return { total: active.length, attention: attention.length, overdue: overdue.length };
   }, [rows]);
 
   const filtered = useMemo(() => {
@@ -392,7 +340,7 @@ export default function ProjectStatus() {
   // Visible columns
   const hideCustomer = groupMode === "customer";
   const hidePm       = groupMode === "pm";
-  const colSpan      = 6 - (hideCustomer ? 1 : 0) - (hidePm ? 1 : 0);
+  const colSpan      = 5 - (hideCustomer ? 1 : 0) - (hidePm ? 1 : 0);
 
   // Toggle group collapse
   function toggleGroup(name: string) {
@@ -408,7 +356,6 @@ export default function ProjectStatus() {
         {!hideCustomer && <TableHead className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Customer</TableHead>}
         {!hidePm       && <TableHead className="text-xs font-medium text-muted-foreground uppercase tracking-wide">PM</TableHead>}
         <TableHead className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Health</TableHead>
-        <TableHead className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Budget</TableHead>
         <TableHead className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Updated</TableHead>
       </TableRow>
     </TableHeader>
@@ -460,7 +407,7 @@ export default function ProjectStatus() {
     const dot = resolveColor(row.color, row.id);
 
     const borderCls =
-      (row.riskLevel === "high" || row.budgetAlert)
+      row.riskLevel === "high"
         ? "border-l-red-500/60 hover:bg-red-500/6"
         : row.updateOverdue
         ? "border-l-amber-500/60 hover:bg-amber-500/6"
@@ -502,13 +449,6 @@ export default function ProjectStatus() {
           </div>
         </TableCell>
         <TableCell>
-          <BudgetCell
-            budgetTotal={row.budgetTotal}
-            budgetConsumed={row.budgetConsumed}
-            budgetAlert={row.budgetAlert}
-          />
-        </TableCell>
-        <TableCell>
           <UpdatedCell latestUpdateAt={row.latestUpdateAt} updateOverdue={row.updateOverdue} />
         </TableCell>
       </TableRow>
@@ -527,7 +467,7 @@ export default function ProjectStatus() {
 
       {/* KPI strip */}
       {!isLoading && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
           <KpiCard
             label="Active projects"
             value={kpis.total}
@@ -539,12 +479,6 @@ export default function ProjectStatus() {
             value={kpis.attention}
             icon={<Zap className="h-4 w-4" strokeWidth={1.5} />}
             accent={kpis.attention > 0 ? "amber" : "default"}
-          />
-          <KpiCard
-            label="Budget alerts"
-            value={kpis.budgetAlerts}
-            icon={<AlertTriangle className="h-4 w-4" strokeWidth={1.5} />}
-            accent={kpis.budgetAlerts > 0 ? "red" : "default"}
           />
           <KpiCard
             label="Update overdue"

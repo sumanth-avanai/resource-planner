@@ -1,5 +1,6 @@
 /**
- * Mock API — dev-only, in-browser fake of the AvaTrack REST API.
+ * Mock API — dev-only, in-browser fake of the Resource Planner REST API.
+ * Money-free build: no billing, invoices, day rates, budget-status, or revenue.
  *
  * Activated ONLY when VITE_MOCK === "1" (see main.tsx + `pnpm dev:mock`).
  * Patches window.fetch and answers every `/api/*` request from an in-memory
@@ -24,9 +25,6 @@ interface TimeEntry {
   entryDate: string;
   hours: number;
   note: string | null;
-  invoicedAt: string | null;
-  invoiceReference: string | null;
-  billingStatus: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -36,17 +34,17 @@ interface Employee {
   id: number; name: string; email: string | null; weeklyCapacityHours: number;
   workingDaysMask: number[]; holidayCalendarCode: string | null;
   contractStartDate: string | null; contractEndDate: string | null;
-  utilizationTarget: number | null; personalAccessToken: string; active: boolean; createdAt: string;
+  utilizationTarget: number | null; personalAccessToken: string; personalAccessPin?: string; active: boolean; createdAt: string;
 }
 interface Project {
   id: number; clientId: number; name: string; code: string | null; active: boolean;
-  isBillable: boolean; budgetHours: number | null; startDate: string | null; endDate: string | null;
-  color: string | null; pmName: string | null; generalStatus: string | null; budgetStatus: string | null;
+  budgetHours: number | null; startDate: string | null; endDate: string | null;
+  color: string | null; pmName: string | null; generalStatus: string | null;
   riskLevel: string | null; clientSatisfaction: string | null;
   nextSteps: Array<{ id: string; text: string; done: boolean }> | null; createdAt: string;
 }
 interface Role {
-  id: number; projectId: number; name: string; dayRate: number;
+  id: number; projectId: number; name: string;
   budgetedDays: number | null; budgetedHours: number | null; createdAt: string; updatedAt: string;
 }
 interface Booking {
@@ -61,7 +59,6 @@ interface Booking {
 interface ManualEntryRange {
   employeeId: number; projectId: number; projectRoleId: number | null;
   startDate: string; endDate: string; hoursPerDay: number;
-  billingStatus: string | null; invoiceReference: string | null;
 }
 interface Vacation {
   id: number; employeeId: number; startDate: string; endDate: string;
@@ -70,12 +67,8 @@ interface Vacation {
 interface HolidayCalendar { id: number; code: string; name: string; createdAt: string }
 interface Holiday { id: number; calendarId: number; date: string; name: string }
 interface HealthUpdate {
-  id: number; projectId: number; generalStatus: string; budgetStatus: string | null;
+  id: number; projectId: number; generalStatus: string;
   riskLevel: string; clientSatisfaction: string | null; comment: string | null; createdAt: string;
-}
-interface Invoice {
-  id: number; projectId: number; createdAt: string; periodStart: string; periodEnd: string;
-  totalAmount: number; reference: string | null; roleIds: number[]; employeeIds: number[];
 }
 interface SavedReport { id: string; name: string; config: string; createdAt: string; updatedAt: string }
 
@@ -90,7 +83,7 @@ interface MockDb {
   holidayCalendars: HolidayCalendar[];
   holidays: Holiday[];
   healthUpdates: HealthUpdate[];
-  invoices: Invoice[];
+  invoices: unknown[];
   savedReports: SavedReport[];
   timeEntries: TimeEntry[];
   manualTimeEntries?: ManualEntryRange[];
@@ -160,7 +153,6 @@ function onVacation(empId: number, date: string): boolean {
 /* Generate past time entries from bookings so Timesheet/Reports/Billing have data. */
 function generateTimeEntries() {
   const today = todayStr();
-  const curMonth = monthOf(today);
   // explicit logged work (used e.g. by the budget-reconciliation demo project)
   for (const m of db.manualTimeEntries ?? []) {
     for (const d of eachDay(m.startDate, m.endDate)) {
@@ -173,9 +165,6 @@ function generateTimeEntries() {
         entryDate: d,
         hours: m.hoursPerDay,
         note: null,
-        invoicedAt: m.billingStatus === "invoiced" ? `${d}T18:00:00.000Z` : null,
-        invoiceReference: m.invoiceReference,
-        billingStatus: m.billingStatus,
         createdAt: `${d}T18:00:00.000Z`,
         updatedAt: `${d}T18:00:00.000Z`,
       });
@@ -187,8 +176,6 @@ function generateTimeEntries() {
       if (d >= today) break;
       const h = bookingHoursOn(b, d);
       if (h <= 0 || !isWorkingDay(b.employeeId, d) || onVacation(b.employeeId, d)) continue;
-      const invoiced = b.projectId === 1 && monthOf(d) < curMonth;
-      const inv = db.invoices.find((i) => i.projectId === b.projectId && d >= i.periodStart && d <= i.periodEnd);
       db.timeEntries.push({
         id: nid(),
         employeeId: b.employeeId,
@@ -197,9 +184,6 @@ function generateTimeEntries() {
         entryDate: d,
         hours: h,
         note: null,
-        invoicedAt: invoiced ? (inv?.createdAt ?? now()) : null,
-        invoiceReference: invoiced ? (inv?.reference ?? null) : null,
-        billingStatus: invoiced ? "invoiced" : null,
         createdAt: `${d}T18:00:00.000Z`,
         updatedAt: `${d}T18:00:00.000Z`,
       });
@@ -223,7 +207,6 @@ function enrichBooking(b: (typeof db.resourceBookings)[number]) {
     projectColor: proj?.color ?? "#8A93A3",
     clientName: client?.name ?? null,
     projectRoleName: role?.name ?? null,
-    dayRate: role?.dayRate ?? null,
   };
 }
 
@@ -237,9 +220,7 @@ function enrichEntry(e: TimeEntry) {
     employeeName: emp?.name ?? null,
     projectName: proj?.name ?? null,
     clientName: client?.name ?? null,
-    isBillable: proj?.isBillable ?? null,
     roleName: role?.name ?? null,
-    roleDayRate: role?.dayRate ?? null,
   };
 }
 
@@ -301,11 +282,9 @@ function roleBudgetFigures(r: Role) {
   // per-day logged hours
   const loggedByDay = new Map<string, number>();
   let loggedHours = 0;
-  let invoicedHours = 0;
   for (const e of db.timeEntries.filter((e) => e.projectRoleId === r.id)) {
     loggedByDay.set(e.entryDate, (loggedByDay.get(e.entryDate) ?? 0) + e.hours);
     loggedHours += e.hours;
-    if (e.billingStatus === "invoiced") invoicedHours += e.hours;
   }
   let reservedHours = 0; // committed future, undelivered
   let staleHours = 0; // past plan never delivered (and never released)
@@ -318,19 +297,15 @@ function roleBudgetFigures(r: Role) {
   }
 
   const loggedDays = round1(loggedHours / 8);
-  const invoicedDays = round1(invoicedHours / 8);
   const reservedDays = round1(reservedHours / 8);
   return {
     budgetedDays,
     plannedDays: round1(plannedHours / 8),
     loggedDays,
-    invoicedDays,
     reservedDays,
     stalePlanDays: round1(staleHours / 8),
     unplannedDays: budgetedDays == null ? null : round1(budgetedDays - loggedDays - reservedDays),
     freeDays: budgetedDays == null ? null : round1(budgetedDays - loggedDays),
-    remainingBudgetDays: budgetedDays == null ? null : round1(budgetedDays - invoicedDays),
-    loggedNotInvoicedDays: round1((loggedHours - invoicedHours) / 8),
   };
 }
 
@@ -365,17 +340,39 @@ on("POST", "/api/auth/app/logout", () => {
 
 /* ──────────────────────────── employees ─────────────────────────────────── */
 
+/** Derived PM teams: a PM is an employee named in project.pmName; an employee
+ *  belongs to a PM's team if they work on that PM's projects (via role
+ *  assignments, bookings, or logged time). */
+function pmNamesForEmployee(empId: number): string[] {
+  const projIds = new Set<number>();
+  for (const a of db.roleAssignments)
+    if (a.employeeId === empId) {
+      const role = db.projectRoles.find((r) => r.id === a.roleId);
+      if (role) projIds.add(role.projectId);
+    }
+  for (const b of db.resourceBookings) if (b.employeeId === empId) projIds.add(b.projectId);
+  for (const e of db.timeEntries) if (e.employeeId === empId) projIds.add(e.projectId);
+  const names = new Set<string>();
+  for (const pid of projIds) {
+    const p = projById(pid);
+    if (p?.pmName) names.add(p.pmName);
+  }
+  return Array.from(names).sort();
+}
+
 on("GET", "/api/employees", (_m, url) => {
   const inactive = url.searchParams.get("includeInactive") === "true";
   const list = db.employees
     .filter((e) => inactive || e.active)
     .slice()
     .sort((a, b) => a.name.localeCompare(b.name));
-  return json(list);
+  return json(list.map(({ personalAccessPin: _pin, ...e }) => ({ ...e, pmNames: pmNamesForEmployee(e.id) })));
 });
 on("GET", "/api/employees/:id", (m) => {
   const emp = empById(Number(m[1]));
-  return emp ? json(emp) : notFound("Employee");
+  if (!emp) return notFound("Employee");
+  const { personalAccessPin: _pin, ...rest } = emp;
+  return json({ ...rest, pmNames: pmNamesForEmployee(emp.id) });
 });
 on("POST", "/api/employees", (_m, _u, body) => {
   const emp = {
@@ -483,14 +480,12 @@ on("POST", "/api/projects", (_m, _u, body) => {
     name: String(body?.name ?? "New project"),
     code: (body?.code as string) ?? null,
     active: true,
-    isBillable: body?.isBillable !== false,
     budgetHours: (body?.budgetHours as number) ?? null,
     startDate: (body?.startDate as string) ?? null,
     endDate: (body?.endDate as string) ?? null,
     color: (body?.color as string) ?? "#25B2F9",
     pmName: (body?.pmName as string) ?? null,
     generalStatus: "planned",
-    budgetStatus: null,
     riskLevel: "low",
     clientSatisfaction: null,
     nextSteps: null,
@@ -522,7 +517,6 @@ on("POST", "/api/projects/:id/roles", (m, _u, body) => {
     id: nid(),
     projectId: Number(m[1]),
     name: String(body?.name ?? "New role"),
-    dayRate: Number(body?.dayRate ?? 0),
     budgetedDays: (body?.budgetedDays as number) ?? null,
     budgetedHours: (body?.budgetedHours as number) ?? null,
     createdAt: now(),
@@ -556,30 +550,27 @@ on("GET", "/api/project-roles/:id/budget-status", (m, url) => {
   if (!r) return notFound("Role");
   const fig = roleBudgetFigures(r);
   const employeeId = url.searchParams.get("employeeId");
-  const perEmployee = new Map<number, { days: number; loggedDays: number; invoicedDays: number }>();
+  const perEmployee = new Map<number, { days: number; loggedDays: number }>();
   for (const b of db.resourceBookings.filter((b) => b.projectRoleId === r.id && b.status !== "tentative")) {
-    const cur = perEmployee.get(b.employeeId) ?? { days: 0, loggedDays: 0, invoicedDays: 0 };
+    const cur = perEmployee.get(b.employeeId) ?? { days: 0, loggedDays: 0 };
     for (const d of eachDay(b.startDate, b.endDate)) cur.days += bookingHoursOn(b, d) / 8;
     perEmployee.set(b.employeeId, cur);
   }
   for (const e of db.timeEntries.filter((e) => e.projectRoleId === r.id)) {
-    const cur = perEmployee.get(e.employeeId) ?? { days: 0, loggedDays: 0, invoicedDays: 0 };
+    const cur = perEmployee.get(e.employeeId) ?? { days: 0, loggedDays: 0 };
     cur.loggedDays += e.hours / 8;
-    if (e.billingStatus === "invoiced") cur.invoicedDays += e.hours / 8;
     perEmployee.set(e.employeeId, cur);
   }
   const empId = employeeId ? Number(employeeId) : null;
   return json({
     ...fig,
     employeeLoggedDays: empId ? round1(perEmployee.get(empId)?.loggedDays ?? 0) : null,
-    employeeInvoicedDays: empId ? round1(perEmployee.get(empId)?.invoicedDays ?? 0) : null,
     bookings: [...perEmployee.entries()]
       .map(([employeeId, v]) => ({
         employeeId,
         employeeName: empById(employeeId)?.name ?? "",
         days: round1(v.days),
         loggedDays: round1(v.loggedDays),
-        invoicedDays: round1(v.invoicedDays),
       }))
       .sort((a, b) => b.days + b.loggedDays - (a.days + a.loggedDays)),
   });
@@ -600,16 +591,11 @@ on("GET", "/api/projects/:id/budget", (m) => {
       plannedDays: fig.plannedDays,
       budgetedDays: r.budgetedDays,
       budgetedHours,
-      budgetValue: r.budgetedDays != null ? round2(r.budgetedDays * r.dayRate) : null,
-      bookedValue: round2(bookedDays * r.dayRate),
       utilization: r.budgetedDays ? round2(bookedDays / r.budgetedDays) : null,
-      invoicedDays: fig.invoicedDays,
       reservedDays: fig.reservedDays,
       stalePlanDays: fig.stalePlanDays,
       unplannedDays: fig.unplannedDays,
       freeDays: fig.freeDays,
-      remainingBudgetDays: fig.remainingBudgetDays,
-      loggedNotInvoicedDays: fig.loggedNotInvoicedDays,
     };
   });
   const sum = (k: keyof (typeof out)[number]) => round1(out.reduce((s, r) => s + ((r[k] as number) ?? 0), 0));
@@ -618,16 +604,11 @@ on("GET", "/api/projects/:id/budget", (m) => {
     totals: {
       budgetedDays: sum("budgetedDays"),
       budgetedHours: sum("budgetedHours"),
-      budgetValue: round2(out.reduce((s, r) => s + (r.budgetValue ?? 0), 0)),
       bookedHours: sum("bookedHours"),
-      bookedValue: round2(out.reduce((s, r) => s + r.bookedValue, 0)),
-      invoicedDays: sum("invoicedDays"),
       reservedDays: sum("reservedDays"),
       stalePlanDays: sum("stalePlanDays"),
       unplannedDays: sum("unplannedDays"),
       freeDays: sum("freeDays"),
-      remainingBudgetDays: sum("remainingBudgetDays"),
-      loggedNotInvoicedDays: sum("loggedNotInvoicedDays"),
     },
   });
 });
@@ -649,18 +630,13 @@ on("GET", "/api/projects/:id/allocations", (m) => {
     return {
       roleId: r.id,
       roleName: r.name,
-      dayRate: r.dayRate,
       budgetedDays: r.budgetedDays,
       plannedDays: fig.plannedDays,
       bookedDays,
-      invoicedDays: fig.invoicedDays,
       reservedDays: fig.reservedDays,
       stalePlanDays: fig.stalePlanDays,
       unplannedDays: fig.unplannedDays,
       freeDays: fig.freeDays,
-      remainingBudgetDays: fig.remainingBudgetDays,
-      budgetValue: r.budgetedDays != null ? round2(r.budgetedDays * r.dayRate) : null,
-      bookedValue: round2(bookedDays * r.dayRate),
       allocations: [...byEmp.entries()]
         .map(([employeeId, v]) => ({
           employeeId,
@@ -681,13 +657,9 @@ on("GET", "/api/projects/:id/allocations", (m) => {
       budgetedDays: sum((r) => r.budgetedDays),
       plannedDays: sum((r) => r.plannedDays),
       bookedDays: sum((r) => r.bookedDays),
-      invoicedDays: sum((r) => r.invoicedDays),
       reservedDays: sum((r) => r.reservedDays),
       unplannedDays: sum((r) => r.unplannedDays),
       freeDays: sum((r) => r.freeDays),
-      remainingBudgetDays: sum((r) => r.remainingBudgetDays),
-      budgetValue: sum((r) => r.budgetValue),
-      bookedValue: sum((r) => r.bookedValue),
     },
   });
 });
@@ -904,9 +876,6 @@ on("POST", "/api/time-entries", (_m, _u, body) => {
     entryDate: String(body?.entryDate ?? todayStr()),
     hours,
     note: (body?.note as string) ?? null,
-    invoicedAt: null,
-    invoiceReference: null,
-    billingStatus: null,
     createdAt: now(),
     updatedAt: now(),
   };
@@ -945,9 +914,6 @@ on("POST", "/api/time-entries/bulk", (_m, _u, body) => {
         entryDate,
         hours,
         note: (item.note as string) ?? null,
-        invoicedAt: null,
-        invoiceReference: null,
-        billingStatus: null,
         createdAt: now(),
         updatedAt: now(),
       };
@@ -987,12 +953,9 @@ on("GET", "/api/dashboard/summary", () => {
         if (isWorkingDay(emp.id, d) && !onVacation(emp.id, d)) available += emp.weeklyCapacityHours / 5;
       }
       let booked = 0;
-      let billable = 0;
       for (const b of db.resourceBookings.filter((b) => b.employeeId === emp.id && b.status !== "tentative")) {
         for (const d of eachDay(weekStart, weekEnd)) {
-          const h = bookingHoursOn(b, d);
-          booked += h;
-          if (projById(b.projectId)?.isBillable) billable += h;
+          booked += bookingHoursOn(b, d);
         }
       }
       return {
@@ -1000,7 +963,6 @@ on("GET", "/api/dashboard/summary", () => {
         employeeName: emp.name,
         availableHours: round2(available),
         bookedHours: round2(booked),
-        billableHours: round2(billable),
         utilization: available ? round1((booked / available) * 100) : 0,
       };
     });
@@ -1008,7 +970,6 @@ on("GET", "/api/dashboard/summary", () => {
     weekStartDate: weekStart,
     weekEndDate: weekEnd,
     totalBookedHours: round2(summaries.reduce((s, e) => s + e.bookedHours, 0)),
-    billableBookedHours: round2(summaries.reduce((s, e) => s + e.billableHours, 0)),
     employeeSummaries: summaries,
   });
 });
@@ -1017,15 +978,13 @@ on("GET", "/api/dashboard/summary", () => {
 
 function projectBudgetTotals(projectId: number) {
   const roles = db.projectRoles.filter((r) => r.projectId === projectId);
-  const budgetTotal = roles.reduce((s, r) => s + (r.budgetedDays ?? 0) * r.dayRate, 0) || null;
+  // day-based budgets (8h = 1 day); no money in this build
+  const budgetTotal = roles.reduce((s, r) => s + (r.budgetedDays ?? 0), 0) || null;
   let logged = 0;
-  let invoiced = 0;
   for (const e of db.timeEntries.filter((e) => e.projectId === projectId)) {
-    const rate = roleById(e.projectRoleId)?.dayRate ?? 0;
-    logged += (e.hours / 8) * rate;
-    if (e.billingStatus === "invoiced") invoiced += (e.hours / 8) * rate;
+    logged += e.hours / 8;
   }
-  return { budgetTotal, logged: round2(logged), invoiced: round2(invoiced) };
+  return { budgetTotal, logged: round1(logged) };
 }
 
 function trendFor(projectId: number): "up" | "down" | "stable" | null {
@@ -1078,20 +1037,18 @@ on("GET", "/api/project-status", () => {
 on("GET", "/api/project-status/:id", (m) => {
   const p = projById(Number(m[1]));
   if (!p) return notFound("Project");
-  const { budgetTotal, logged, invoiced } = projectBudgetTotals(p.id);
+  const { budgetTotal, logged } = projectBudgetTotals(p.id);
   const history = db.healthUpdates
     .filter((h) => h.projectId === p.id)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const latest = history[0];
   const age = latest ? Math.floor((Date.now() - new Date(latest.createdAt).getTime()) / DAY) : null;
   const pct = budgetTotal ? logged / budgetTotal : null;
-  const months = new Map<string, { loggedRevenue: number; invoicedRevenue: number }>();
+  const months = new Map<string, { loggedDays: number }>();
   for (const e of db.timeEntries.filter((e) => e.projectId === p.id)) {
-    const rate = roleById(e.projectRoleId)?.dayRate ?? 0;
     const mo = monthOf(e.entryDate);
-    const cur = months.get(mo) ?? { loggedRevenue: 0, invoicedRevenue: 0 };
-    cur.loggedRevenue += (e.hours / 8) * rate;
-    if (e.billingStatus === "invoiced") cur.invoicedRevenue += (e.hours / 8) * rate;
+    const cur = months.get(mo) ?? { loggedDays: 0 };
+    cur.loggedDays += e.hours / 8;
     months.set(mo, cur);
   }
   const today = todayStr();
@@ -1111,7 +1068,6 @@ on("GET", "/api/project-status/:id", (m) => {
       nextSteps: p.nextSteps ?? null,
       budgetTotal,
       loggedTotal: logged,
-      invoicedTotal: invoiced,
       trendDirection: trendFor(p.id),
       nextUpdateDue: latest ? addDays(latest.createdAt.slice(0, 10), 14) : null,
       updateOverdue: age == null || age >= 14,
@@ -1123,7 +1079,7 @@ on("GET", "/api/project-status/:id", (m) => {
     history,
     monthlyData: [...months.entries()]
       .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([month, v]) => ({ month, loggedRevenue: round2(v.loggedRevenue), invoicedRevenue: round2(v.invoicedRevenue) })),
+      .map(([month, v]) => ({ month, loggedDays: round1(v.loggedDays) })),
     futureBookings: db.resourceBookings
       .filter((b) => b.projectId === p.id && b.endDate >= today)
       .map((b) => ({
@@ -1136,7 +1092,6 @@ on("GET", "/api/project-status/:id", (m) => {
         weekdayHours: b.weekdayHours ?? null,
         projectRoleId: b.projectRoleId,
         roleName: roleById(b.projectRoleId)?.name ?? null,
-        dayRate: roleById(b.projectRoleId)?.dayRate ?? null,
       })),
     updateCadenceDays: 14,
     budgetAlertThreshold: 0.9,
@@ -1150,7 +1105,6 @@ on("POST", "/api/project-status/:id/health-updates", (m, _u, body) => {
     id: nid(),
     projectId: p.id,
     generalStatus: String(body?.generalStatus ?? "in_progress"),
-    budgetStatus: (body?.budgetStatus as string) ?? null,
     riskLevel: String(body?.riskLevel ?? "low"),
     clientSatisfaction: (body?.clientSatisfaction as string) ?? null,
     comment: (body?.comment as string) ?? null,
@@ -1159,7 +1113,6 @@ on("POST", "/api/project-status/:id/health-updates", (m, _u, body) => {
   db.healthUpdates.push(h);
   Object.assign(p, {
     generalStatus: h.generalStatus,
-    budgetStatus: h.budgetStatus,
     riskLevel: h.riskLevel,
     clientSatisfaction: h.clientSatisfaction,
   });
@@ -1172,13 +1125,7 @@ on("PATCH", "/api/project-status/:id/next-steps", (m, _u, body) => {
   return json({ ok: true });
 });
 
-/* ─────────────────────────────── billing ────────────────────────────────── */
-
-interface BillingBucket {
-  hours: number;
-  invoicedHours: number;
-  investHours: number;
-}
+/* ─────────────────────────── report helpers ─────────────────────────────── */
 
 function billingEntries(projectId: number | null, start: string | null, end: string | null) {
   return db.timeEntries.filter(
@@ -1189,303 +1136,16 @@ function billingEntries(projectId: number | null, start: string | null, end: str
   );
 }
 
-function bucketBy<K>(entries: TimeEntry[], key: (e: TimeEntry) => K): Map<K, BillingBucket> {
-  const map = new Map<K, BillingBucket>();
+function bucketBy<K>(entries: TimeEntry[], key: (e: TimeEntry) => K): Map<K, { hours: number }> {
+  const map = new Map<K, { hours: number }>();
   for (const e of entries) {
     const k = key(e);
-    const cur = map.get(k) ?? { hours: 0, invoicedHours: 0, investHours: 0 };
+    const cur = map.get(k) ?? { hours: 0 };
     cur.hours += e.hours;
-    if (e.billingStatus === "invoiced" || (e.billingStatus == null && e.invoicedAt != null)) cur.invoicedHours += e.hours;
-    if (e.billingStatus === "invest") cur.investHours += e.hours;
     map.set(k, cur);
   }
   return map;
 }
-
-const money = (hours: number, rate: number) => round2((hours / 8) * rate);
-
-on("GET", "/api/billing", (_m, url) => {
-  const start = url.searchParams.get("startDate");
-  const end = url.searchParams.get("endDate");
-  const zero = () => ({ budget: 0, logged: 0, invoiced: 0, invest: 0, unbilled: 0, remaining: 0 });
-  const add = (t: ReturnType<typeof zero>, o: ReturnType<typeof zero>) => {
-    t.budget += o.budget; t.logged += o.logged; t.invoiced += o.invoiced;
-    t.invest += o.invest; t.unbilled += o.unbilled; t.remaining += o.remaining;
-  };
-  const grand = zero();
-  const clients = db.clients
-    .filter((c) => c.active)
-    .map((c) => {
-      const cTotals = zero();
-      const projects = db.projects
-        .filter((p) => p.clientId === c.id && p.active)
-        .map((p) => {
-          const pTotals = zero();
-          const roles = db.projectRoles
-            .filter((r) => r.projectId === p.id)
-            .map((r) => {
-              const entries = billingEntries(p.id, start, end).filter((e) => e.projectRoleId === r.id);
-              const byEmp = bucketBy(entries, (e) => e.employeeId);
-              const tot = { hours: 0, invoicedHours: 0, investHours: 0 };
-              for (const v of byEmp.values()) {
-                tot.hours += v.hours; tot.invoicedHours += v.invoicedHours; tot.investHours += v.investHours;
-              }
-              const budget = r.budgetedDays != null ? round2(r.budgetedDays * r.dayRate) : null;
-              const logged = money(tot.hours, r.dayRate);
-              const invoiced = money(tot.invoicedHours, r.dayRate);
-              const invest = money(tot.investHours, r.dayRate);
-              const unbilled = round2(logged - invoiced - invest);
-              const roleOut = {
-                id: r.id,
-                name: r.name,
-                dayrate: r.dayRate,
-                budgetedDays: r.budgetedDays,
-                budget,
-                loggedDays: round1(tot.hours / 8),
-                loggedHours: round2(tot.hours),
-                logged,
-                invoiced,
-                invest,
-                unbilled,
-                remaining: budget != null ? round2(budget - logged) : null,
-                employees: [...byEmp.entries()]
-                  .map(([id, v]) => ({
-                    id,
-                    name: empById(id)?.name ?? "",
-                    hours: round2(v.hours),
-                    days: round1(v.hours / 8),
-                    revenue: money(v.hours, r.dayRate),
-                    invoiced: money(v.invoicedHours, r.dayRate),
-                    invest: money(v.investHours, r.dayRate),
-                    unbilled: round2(money(v.hours, r.dayRate) - money(v.invoicedHours, r.dayRate) - money(v.investHours, r.dayRate)),
-                    billingStatus:
-                      v.invoicedHours >= v.hours && v.hours > 0 ? "invoiced" : v.investHours > 0 ? "invest" : null,
-                  }))
-                  .sort((a, b) => b.revenue - a.revenue),
-              };
-              add(pTotals, { budget: budget ?? 0, logged, invoiced, invest, unbilled, remaining: roleOut.remaining ?? 0 });
-              return roleOut;
-            });
-          add(cTotals, pTotals);
-          return { id: p.id, name: p.name, totals: pTotals, roles };
-        });
-      add(grand, cTotals);
-      return { id: c.id, name: c.name, totals: cTotals, projects };
-    })
-    .filter((c) => c.projects.length > 0);
-  return json({ totals: grand, clients });
-});
-
-on("GET", "/api/projects/:id/billing", (m, url) => {
-  const p = projById(Number(m[1]));
-  if (!p) return notFound("Project");
-  const start = url.searchParams.get("startDate");
-  const end = url.searchParams.get("endDate");
-  const totals = { budget: 0, logged: 0, invoiced: 0, invest: 0, unbilled: 0, remaining: 0 };
-  const roles = db.projectRoles
-    .filter((r) => r.projectId === p.id)
-    .map((r) => {
-      const entries = billingEntries(p.id, start, end).filter((e) => e.projectRoleId === r.id);
-      const byEmp = bucketBy(entries, (e) => e.employeeId);
-      const tot = { hours: 0, invoicedHours: 0, investHours: 0 };
-      for (const v of byEmp.values()) {
-        tot.hours += v.hours; tot.invoicedHours += v.invoicedHours; tot.investHours += v.investHours;
-      }
-      const budget = r.budgetedDays != null ? round2(r.budgetedDays * r.dayRate) : null;
-      const logged = money(tot.hours, r.dayRate);
-      const invoiced = money(tot.invoicedHours, r.dayRate);
-      const invest = money(tot.investHours, r.dayRate);
-      const unbilled = round2(logged - invoiced - invest);
-      totals.budget += budget ?? 0;
-      totals.logged += logged;
-      totals.invoiced += invoiced;
-      totals.invest += invest;
-      totals.unbilled += unbilled;
-      totals.remaining += budget != null ? budget - logged : 0;
-      return {
-        id: r.id,
-        name: r.name,
-        dayrate: r.dayRate,
-        budgetedDays: r.budgetedDays,
-        budget,
-        loggedHours: round2(tot.hours),
-        logged,
-        invoicedHours: round2(tot.invoicedHours),
-        invoiced,
-        investHours: round2(tot.investHours),
-        invest,
-        unbilled,
-        remaining: budget != null ? round2(budget - logged) : null,
-        employees: [...byEmp.entries()]
-          .map(([id, v]) => ({
-            id,
-            name: empById(id)?.name ?? "",
-            loggedHours: round2(v.hours),
-            logged: money(v.hours, r.dayRate),
-            invoicedHours: round2(v.invoicedHours),
-            invoiced: money(v.invoicedHours, r.dayRate),
-            investHours: round2(v.investHours),
-            invest: money(v.investHours, r.dayRate),
-            unbilled: round2(money(v.hours, r.dayRate) - money(v.invoicedHours, r.dayRate) - money(v.investHours, r.dayRate)),
-            billingStatus:
-              v.invoicedHours >= v.hours && v.hours > 0 ? "invoiced" : v.investHours > 0 ? "invest" : null,
-          }))
-          .sort((a, b) => b.logged - a.logged),
-      };
-    });
-  for (const k of Object.keys(totals) as Array<keyof typeof totals>) totals[k] = round2(totals[k]);
-  return json({ project: { id: p.id, name: p.name }, totals, roles });
-});
-
-on("GET", "/api/projects/:id/billing/history", (m) => {
-  const p = projById(Number(m[1]));
-  if (!p) return notFound("Project");
-  const history = db.invoices
-    .filter((i) => i.projectId === p.id)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .map((i) => ({
-      reference: i.reference,
-      invoicedAt: i.createdAt,
-      totalAmount: i.totalAmount,
-      roleCount: i.roleIds.length,
-      employeeCount: i.employeeIds.length,
-      roles: i.roleIds.map((id) => ({ id, name: roleById(id)?.name ?? "" })),
-      employees: i.employeeIds.map((id) => ({ id, name: empById(id)?.name ?? "" })),
-    }));
-  return json({ project: { id: p.id, name: p.name }, history });
-});
-
-on("GET", "/api/projects/:id/billing/lifetime", (m) => {
-  const p = projById(Number(m[1]));
-  if (!p) return notFound("Project");
-  const roles = db.projectRoles.filter((r) => r.projectId === p.id);
-  const budget = round2(roles.reduce((s, r) => s + (r.budgetedDays ?? 0) * r.dayRate, 0));
-  const entries = db.timeEntries.filter((e) => e.projectId === p.id).sort((a, b) => a.entryDate.localeCompare(b.entryDate));
-  if (!entries.length) return json({ project: { id: p.id, name: p.name }, budget, totalLogged: 0, totalInvoiced: 0, remaining: budget, monthlyData: [] });
-  const firstMonth = monthOf(entries[0].entryDate);
-  const curMonth = monthOf(todayStr());
-  const perMonth = new Map<string, { logged: number; invoiced: number }>();
-  for (const e of entries) {
-    const rate = roleById(e.projectRoleId)?.dayRate ?? 0;
-    const mo = monthOf(e.entryDate);
-    const cur = perMonth.get(mo) ?? { logged: 0, invoiced: 0 };
-    cur.logged += (e.hours / 8) * rate;
-    if (e.billingStatus === "invoiced") cur.invoiced += (e.hours / 8) * rate;
-    perMonth.set(mo, cur);
-  }
-  const monthlyData: Array<{ month: string; loggedCumulative: number; invoicedCumulative: number }> = [];
-  let cl = 0;
-  let ci = 0;
-  let mo = firstMonth;
-  while (mo <= curMonth) {
-    const v = perMonth.get(mo);
-    cl += v?.logged ?? 0;
-    ci += v?.invoiced ?? 0;
-    monthlyData.push({ month: mo, loggedCumulative: round2(cl), invoicedCumulative: round2(ci) });
-    const [y, mm] = mo.split("-").map(Number);
-    mo = mm === 12 ? `${y + 1}-01` : `${y}-${String(mm + 1).padStart(2, "0")}`;
-  }
-  return json({
-    project: { id: p.id, name: p.name },
-    budget,
-    totalLogged: round2(cl),
-    totalInvoiced: round2(ci),
-    remaining: round2(budget - cl),
-    monthlyData,
-  });
-});
-
-on("GET", "/api/projects/:id/invoices", (m) => {
-  const p = projById(Number(m[1]));
-  if (!p) return notFound("Project");
-  return json({
-    project: { id: p.id, name: p.name },
-    invoices: db.invoices
-      .filter((i) => i.projectId === p.id)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .map((i) => ({
-        id: i.id,
-        createdAt: i.createdAt,
-        periodStart: i.periodStart,
-        periodEnd: i.periodEnd,
-        totalAmount: i.totalAmount,
-        reference: i.reference,
-        roleCount: i.roleIds.length,
-        employeeCount: i.employeeIds.length,
-        roles: i.roleIds.map((id) => ({ id, name: roleById(id)?.name ?? "" })),
-        employees: i.employeeIds.map((id) => ({ id, name: empById(id)?.name ?? "" })),
-      })),
-  });
-});
-
-on("POST", "/api/projects/:id/invoices", (m, _u, body) => {
-  const p = projById(Number(m[1]));
-  if (!p) return notFound("Project");
-  const items = (body?.items as Array<{ roleId: number; employeeId: number }>) ?? [];
-  const periodStart = String(body?.periodStart ?? todayStr());
-  const periodEnd = String(body?.periodEnd ?? todayStr());
-  let total = 0;
-  let updated = 0;
-  for (const e of db.timeEntries) {
-    if (e.projectId !== p.id || e.entryDate < periodStart || e.entryDate > periodEnd) continue;
-    if (!items.some((it) => it.roleId === (e.projectRoleId ?? -1) && (it.employeeId == null || it.employeeId === e.employeeId))) continue;
-    if (e.billingStatus === "invoiced") continue;
-    e.billingStatus = "invoiced";
-    e.invoicedAt = now();
-    e.invoiceReference = (body?.reference as string) ?? null;
-    total += (e.hours / 8) * (roleById(e.projectRoleId)?.dayRate ?? 0);
-    updated++;
-  }
-  const inv = {
-    id: nid(),
-    projectId: p.id,
-    createdAt: now(),
-    periodStart,
-    periodEnd,
-    totalAmount: round2(total),
-    reference: (body?.reference as string) ?? null,
-    roleIds: [...new Set(items.map((i) => i.roleId))],
-    employeeIds: [...new Set(items.map((i) => i.employeeId).filter((x) => x != null))],
-  };
-  db.invoices.push(inv);
-  return json({ invoiceId: inv.id, updatedCount: updated, totalAmount: inv.totalAmount });
-});
-
-on("POST", "/api/time-entries/update-billing-status", (_m, _u, body) => {
-  const projectId = Number(body?.projectId);
-  const items = (body?.items as Array<{ roleId: number; employeeId?: number }>) ?? [];
-  const start = (body?.startDate as string) ?? null;
-  const end = (body?.endDate as string) ?? null;
-  const status = (body?.status as string | null) ?? null;
-  let updated = 0;
-  for (const e of db.timeEntries) {
-    if (e.projectId !== projectId) continue;
-    if (start && e.entryDate < start) continue;
-    if (end && e.entryDate > end) continue;
-    if (!items.some((it) => it.roleId === (e.projectRoleId ?? -1) && (it.employeeId == null || it.employeeId === e.employeeId))) continue;
-    e.billingStatus = status;
-    if (status === "invoiced") {
-      e.invoicedAt = now();
-      e.invoiceReference = (body?.invoiceReference as string) ?? e.invoiceReference;
-    }
-    e.updatedAt = now();
-    updated++;
-  }
-  return json({ updatedCount: updated });
-});
-
-on("POST", "/api/time-entries/mark-invoiced", (_m, _u, body) => {
-  const projectId = Number(body?.projectId);
-  let updated = 0;
-  for (const e of db.timeEntries) {
-    if (e.projectId !== projectId || e.billingStatus === "invoiced") continue;
-    e.billingStatus = "invoiced";
-    e.invoicedAt = now();
-    e.invoiceReference = (body?.invoiceReference as string) ?? null;
-    updated++;
-  }
-  return json({ updatedCount: updated });
-});
 
 /* ─────────────────────────────── reports ────────────────────────────────── */
 
@@ -1506,25 +1166,18 @@ on("GET", "/api/reports/utilization", (_m, url) => {
     .map((emp) => {
       let available = 0;
       for (const d of eachDay(start, end)) if (isWorkingDay(emp.id, d) && !onVacation(emp.id, d)) available += emp.weeklyCapacityHours / 5;
-      let billable = 0;
-      let nonBillable = 0;
+      let booked = 0;
       for (const b of db.resourceBookings.filter((b) => b.employeeId === emp.id && b.status !== "tentative")) {
         for (const d of eachDay(start > b.startDate ? start : b.startDate, end < b.endDate ? end : b.endDate)) {
-          const h = bookingHoursOn(b, d);
-          if (projById(b.projectId)?.isBillable) billable += h;
-          else nonBillable += h;
+          booked += bookingHoursOn(b, d);
         }
       }
-      const total = billable + nonBillable;
       return {
         employeeId: emp.id,
         employeeName: emp.name,
         availableHours: round2(available),
-        billableHours: round2(billable),
-        nonBillableHours: round2(nonBillable),
-        totalBookedHours: round2(total),
-        billableUtilization: available ? round1((billable / available) * 100) : 0,
-        overallUtilization: available ? round1((total / available) * 100) : 0,
+        totalBookedHours: round2(booked),
+        overallUtilization: available ? round1((booked / available) * 100) : 0,
       };
     });
   return json(out);
@@ -1542,10 +1195,7 @@ on("GET", "/api/reports/projects", (_m, url) => {
         projectId,
         projectName: p?.name ?? "",
         clientName: (p && clientById(p.clientId)?.name) || "",
-        isBillable: p?.isBillable ?? false,
         totalHours: round2(v.hours),
-        billableHours: p?.isBillable ? round2(v.hours) : 0,
-        nonBillableHours: p?.isBillable ? 0 : round2(v.hours),
       };
     }),
   );
@@ -1558,15 +1208,10 @@ on("GET", "/api/reports/clients", (_m, url) => {
   const byClient = bucketBy(billingEntries(null, start, end), (e) => projById(e.projectId)?.clientId ?? 0);
   return json(
     [...byClient.entries()].map(([clientId, v]) => {
-      const billable = db.timeEntries
-        .filter((e) => projById(e.projectId)?.clientId === clientId && e.entryDate >= start && e.entryDate <= end && projById(e.projectId)?.isBillable)
-        .reduce((s, e) => s + e.hours, 0);
       return {
         clientId,
         clientName: clientById(clientId)?.name ?? "",
         totalHours: round2(v.hours),
-        billableHours: round2(billable),
-        nonBillableHours: round2(v.hours - billable),
       };
     }),
   );
@@ -1581,7 +1226,6 @@ interface Fact {
   roleId: number | null;
   date: string;
   booked: number;
-  billableBooked: number;
   planned: number;
 }
 
@@ -1597,7 +1241,6 @@ function buildFacts(start: string, end: string): Fact[] {
       roleId: e.projectRoleId,
       date: e.entryDate,
       booked: e.hours,
-      billableBooked: p?.isBillable ? e.hours : 0,
       planned: 0,
     });
   }
@@ -1613,7 +1256,6 @@ function buildFacts(start: string, end: string): Fact[] {
           roleId: b.projectRoleId,
           date: d,
           booked: 0,
-          billableBooked: 0,
           planned: h,
         });
     }
@@ -1675,7 +1317,6 @@ on("GET", "/api/reports/pivot", (_m, url) => {
   function metricsFor(fs: Fact[], bucket: string | null): Record<string, number> {
     const inBucket = bucket == null || bucket === "Total" ? fs : fs.filter((f) => bucketKey(f.date, colDim) === bucket);
     const booked = inBucket.reduce((s, f) => s + f.booked, 0);
-    const billable = inBucket.reduce((s, f) => s + f.billableBooked, 0);
     const planned = inBucket.reduce((s, f) => s + f.planned, 0);
     const empIds = new Set(inBucket.map((f) => f.employeeId));
     const available = availableFor(empIds, bucket === "Total" ? null : bucket);
@@ -1686,14 +1327,12 @@ on("GET", "/api/reports/pivot", (_m, url) => {
     }, 0);
     const all: Record<string, number> = {
       booked: round2(booked),
-      billable_booked: round2(billable),
       planned: round2(planned),
       available: round2(available),
       budgeted: round2(budgeted),
       remaining_unbooked: round2(available - booked),
       remaining_unplanned: round2(available - planned),
       utilization_pct: available ? round2((booked / available) * 100) : 0,
-      billable_utilization_pct: available ? round2((billable / available) * 100) : 0,
       plan_completion_pct: planned ? round2((booked / planned) * 100) : 0,
       budget_used_pct: budgeted ? round2((booked / budgeted) * 100) : 0,
     };
@@ -1772,12 +1411,17 @@ on("DELETE", "/api/saved-reports/:id", (m) => {
 
 on("GET", "/api/auth/employee/token/:token", (m) => {
   const emp = db.employees.find((e) => e.personalAccessToken === m[1]);
-  return emp ? json(emp) : notFound("Employee");
+  if (!emp) return notFound("Employee");
+  const { personalAccessPin: _pin, ...rest } = emp;
+  return json(rest);
 });
 on("POST", "/api/auth/employee/verify", (_m, _u, body) => {
   const emp = db.employees.find((e) => e.personalAccessToken === body?.token);
   if (!emp || !body?.pin) return json({ error: "Invalid token or PIN" }, 401);
-  const { contractStartDate: _c1, contractEndDate: _c2, utilizationTarget: _u3, ...rest } = emp;
+  // Demo PIN check: if a PIN is set on the employee, it must match.
+  if (emp.personalAccessPin && body?.pin !== emp.personalAccessPin)
+    return json({ error: "Invalid token or PIN" }, 401);
+  const { contractStartDate: _c1, contractEndDate: _c2, utilizationTarget: _u3, personalAccessPin: _pin, ...rest } = emp;
   return json(rest);
 });
 
@@ -1888,9 +1532,6 @@ on("POST", "/api/employee-timesheet/:employeeId/week/:weekStart", (m, _u, body) 
         entryDate,
         hours,
         note: (item.note as string) ?? null,
-        invoicedAt: null,
-        invoiceReference: null,
-        billingStatus: null,
         createdAt: now(),
         updatedAt: now(),
       };

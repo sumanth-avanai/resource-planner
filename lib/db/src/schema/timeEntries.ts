@@ -1,4 +1,4 @@
-import { pgTable, text, varchar, serial, timestamp, real, date, integer, index } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, real, date, integer, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { employeesTable } from "./employees";
@@ -13,9 +13,6 @@ export const timeEntriesTable = pgTable("time_entries", {
   entryDate: date("entry_date").notNull(),
   hours: real("hours").notNull(),
   note: text("note"),
-  invoicedAt: timestamp("invoiced_at", { withTimezone: true }),
-  invoiceReference: varchar("invoice_reference", { length: 100 }),
-  billingStatus: varchar("billing_status", { length: 20 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (t) => [

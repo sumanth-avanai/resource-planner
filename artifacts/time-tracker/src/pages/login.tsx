@@ -46,8 +46,11 @@ export default function Login() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight gradient-text">AvaTrack</h1>
+          <h1 className="text-2xl font-bold tracking-tight gradient-text">Resource Planner</h1>
           <p className="text-xs text-muted-foreground">Internal access only</p>
+          {import.meta.env.VITE_MOCK === "1" && (
+            <p className="text-[11px] text-muted-foreground/70">Demo mode — any password works</p>
+          )}
         </div>
         <div className="bg-card border border-border rounded-lg shadow-xs p-6">
           <form onSubmit={handleSubmit} className="space-y-4">

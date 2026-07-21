@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useGetProjectStatusDetail, getGetProjectStatusDetailQueryKey } from "@workspace/api-client-react";
-import type { FutureBooking, ProjectHealthUpdate } from "@workspace/api-client-react";
+import type { ProjectHealthUpdate } from "@workspace/api-client-react";
 import { AdminLayout } from "@/components/layout/admin-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,11 +25,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft,
-  Activity,
   Plus,
   ExternalLink,
   Clock,
-  AlertTriangle,
   TrendingUp,
   TrendingDown,
   Minus,
@@ -37,7 +35,6 @@ import {
   Square,
   Trash2,
   CalendarDays,
-  DollarSign,
   Shield,
   ShieldAlert,
   Smile,
@@ -47,92 +44,12 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, formatDistanceToNowStrict, isPast } from "date-fns";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-} from "recharts";
-
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface NextStep {
   id: string;
   text: string;
   done: boolean;
-}
-
-interface ProjectDetail {
-  id: number;
-  name: string;
-  color: string | null;
-  clientId: number;
-  clientName: string | null;
-  pmName: string | null;
-  startDate: string | null;
-  endDate: string | null;
-  generalStatus: string | null;
-  riskLevel: string | null;
-  clientSatisfaction: string | null;
-  nextSteps: NextStep[] | null;
-  budgetTotal: number | null;
-  loggedTotal: number | null;
-  invoicedTotal: number | null;
-  trendDirection: "up" | "down" | "stable" | null;
-  nextUpdateDue: string | null;
-  updateOverdue: boolean;
-  lastCommentAt: string | null;
-  budgetAlert: boolean;
-}
-
-interface HealthUpdate {
-  id: number;
-  projectId: number;
-  generalStatus: string;
-  budgetStatus: string | null;
-  riskLevel: string;
-  clientSatisfaction: string | null;
-  comment: string | null;
-  createdAt: string;
-}
-
-interface MonthlyDataPoint {
-  month: string;
-  loggedRevenue: number;
-  invoicedRevenue: number;
-}
-
-interface FutureProjection {
-  month: string;
-  plannedRevenue: number;
-}
-
-// ─── Client-side projection from raw bookings ─────────────────────────────────
-
-function computeFutureProjections(bookings: FutureBooking[], today: Date): FutureProjection[] {
-  const monthMap = new Map<string, number>();
-  const todayTime = today.getTime();
-  for (const b of bookings) {
-    if (!b.dayRate) continue;
-    const startMs = Math.max(new Date(b.startDate + "T00:00:00Z").getTime(), todayTime);
-    const endDate = new Date(b.endDate + "T00:00:00Z");
-    for (let ms = startMs; ms <= endDate.getTime(); ms += 86_400_000) {
-      const d = new Date(ms);
-      const dow = d.getUTCDay(); // 0=Sun … 6=Sat
-      if (dow === 0 || dow === 6) continue;
-      const month = d.toISOString().slice(0, 7);
-      const weekdayHours = b.weekdayHours as Record<string, number> | null;
-      const dailyHours = weekdayHours?.[String(dow)] ?? b.hoursPerDay;
-      const dailyRev = (dailyHours / 8) * b.dayRate;
-      monthMap.set(month, (monthMap.get(month) ?? 0) + dailyRev);
-    }
-  }
-  return Array.from(monthMap.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([month, plannedRevenue]) => ({ month, plannedRevenue: Math.round(plannedRevenue * 100) / 100 }));
 }
 
 // ─── Label / option maps ──────────────────────────────────────────────────────
@@ -144,13 +61,6 @@ const GENERAL_STATUS_OPTIONS = [
   { value: "completed",   label: "Completed" },
   { value: "cancelled",   label: "Cancelled" },
 ];
-
-const BUDGET_STATUS_LABELS: Record<string, string> = {
-  on_track:    "On Track",
-  at_risk:     "At Risk",
-  over_budget: "Over Budget",
-  completed:   "Completed",
-};
 
 const RISK_LEVEL_OPTIONS = [
   { value: "low",    label: "Low" },
@@ -183,16 +93,6 @@ function generalStatusCls(s: string | null) {
     case "on_hold":     return "bg-yellow-500/15 text-yellow-400 border-yellow-500/25";
     case "completed":
     case "cancelled":   return "bg-gray-500/15 text-gray-400 border-gray-500/25";
-    default:            return "bg-white/5 text-muted-foreground border-white/10";
-  }
-}
-
-function budgetStatusCls(s: string | null) {
-  switch (s) {
-    case "on_track":    return "bg-green-500/15 text-green-400 border-green-500/25";
-    case "at_risk":     return "bg-yellow-500/15 text-yellow-400 border-yellow-500/25";
-    case "over_budget": return "bg-red-500/15 text-red-400 border-red-500/25";
-    case "completed":   return "bg-gray-500/15 text-gray-400 border-gray-500/25";
     default:            return "bg-white/5 text-muted-foreground border-white/10";
   }
 }
@@ -259,12 +159,6 @@ function resolveColor(color: string | null | undefined, id: number): string {
   return color ?? PALETTE[id % PALETTE.length];
 }
 
-function fmtEur(n: number): string {
-  if (n >= 1_000_000) return `€${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000)     return `€${Math.round(n / 1_000)}k`;
-  return `€${Math.round(n)}`;
-}
-
 // ─── KPI cards ────────────────────────────────────────────────────────────────
 
 function KpiCard({
@@ -293,260 +187,6 @@ function KpiCard({
         {sub && <p className="text-xs text-muted-foreground/60 mt-0.5">{sub}</p>}
       </div>
     </div>
-  );
-}
-
-// ─── Budget breakdown ─────────────────────────────────────────────────────────
-
-function BudgetBreakdown({
-  budgetTotal,
-  loggedTotal,
-  invoicedTotal,
-  budgetAlert,
-}: {
-  budgetTotal: number | null;
-  loggedTotal: number | null;
-  invoicedTotal: number | null;
-  budgetAlert: boolean;
-}) {
-  if (!budgetTotal || budgetTotal <= 0) {
-    return (
-      <p className="text-sm text-muted-foreground/60 py-4 text-center">
-        No budget configured — add budgeted days to project roles to enable tracking.
-      </p>
-    );
-  }
-
-  const logged   = loggedTotal   ?? 0;
-  const invoiced = invoicedTotal ?? 0;
-  const invest   = 0; // invest hours contribute to logged but not invoiced
-  const unbilled = Math.max(0, logged - invoiced);
-  const remaining = Math.max(0, budgetTotal - logged);
-
-  const pctLogged   = Math.min(100, (logged   / budgetTotal) * 100);
-  const pctInvoiced = Math.min(pctLogged, (invoiced / budgetTotal) * 100);
-
-  const pctColor = pctLogged >= 100 ? "text-red-400" : pctLogged >= 90 ? "text-amber-400" : "text-green-400";
-
-  return (
-    <div className="space-y-4">
-      {/* Segmented bar */}
-      <div className="relative">
-        <div className="h-3 bg-white/6 rounded-full overflow-hidden flex">
-          {/* Invoiced portion (bright) */}
-          <div
-            className="h-full bg-violet-500 transition-all"
-            style={{ width: `${pctInvoiced}%` }}
-          />
-          {/* Logged-but-not-invoiced (muted) */}
-          <div
-            className="h-full bg-violet-500/30 transition-all"
-            style={{ width: `${Math.max(0, pctLogged - pctInvoiced)}%` }}
-          />
-          {/* Remaining is transparent */}
-        </div>
-        {/* 90% alert marker */}
-        <div
-          className="absolute top-0 bottom-0 w-px bg-white/30"
-          style={{ left: "90%" }}
-          title="90% budget threshold"
-        />
-      </div>
-
-      {/* Alert */}
-      {budgetAlert && (
-        <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-          Budget is at or above 90% consumed
-        </div>
-      )}
-
-      {/* 3-column grid */}
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: "Invoiced",         value: invoiced,  pct: (invoiced  / budgetTotal) * 100, color: "text-violet-400" },
-          { label: "Logged (unbilled)", value: unbilled,  pct: (unbilled  / budgetTotal) * 100, color: unbilled > 0 ? "text-amber-400" : "text-muted-foreground" },
-          { label: "Remaining",         value: remaining, pct: (remaining / budgetTotal) * 100, color: "text-muted-foreground" },
-        ].map(({ label, value, pct, color }) => (
-          <div key={label} className="rounded-lg bg-white/3 border border-white/6 p-3">
-            <p className="text-xs text-muted-foreground mb-1">{label}</p>
-            <p className={cn("text-base font-semibold tabular-nums", color)}>{fmtEur(value)}</p>
-            <p className="text-xs text-muted-foreground/50">{Math.round(pct)}%</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── Burn-up chart ────────────────────────────────────────────────────────────
-
-interface ChartPoint {
-  month: string;
-  logged?: number;
-  invoiced?: number;
-  planned?: number;
-  isFuture?: boolean;
-}
-
-function BurnUpChart({
-  monthlyData,
-  futureProjections,
-  budgetTotal,
-}: {
-  monthlyData: MonthlyDataPoint[];
-  futureProjections: FutureProjection[];
-  budgetTotal: number | null;
-}) {
-  if (monthlyData.length === 0 && futureProjections.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground/60 py-8 text-center">
-        No time entries yet — chart will populate once hours are logged with rates.
-      </p>
-    );
-  }
-
-  // Build cumulative series
-  const todayMonthStr = new Date().toISOString().slice(0, 7);
-
-  // Compute cumulative logged + invoiced from historical data
-  let cumLogged = 0;
-  let cumInvoiced = 0;
-  const histPoints: ChartPoint[] = monthlyData.map((d) => {
-    cumLogged   += d.loggedRevenue;
-    cumInvoiced += d.invoicedRevenue;
-    return {
-      month:   d.month,
-      logged:  Math.round(cumLogged),
-      invoiced: Math.round(cumInvoiced),
-      isFuture: false,
-    };
-  });
-
-  // Future projections — cumulative from current logged level
-  let cumPlanned = cumLogged;
-  const futurePoints: ChartPoint[] = futureProjections.map((d) => {
-    cumPlanned += d.plannedRevenue;
-    return {
-      month:   d.month,
-      planned: Math.round(cumPlanned),
-      isFuture: true,
-    };
-  });
-
-  // Merge: if last historical month === first future month, merge the point
-  let allPoints: ChartPoint[] = [...histPoints];
-  if (futurePoints.length > 0) {
-    // Add a bridge point at today
-    const lastHist = histPoints[histPoints.length - 1];
-    if (lastHist) {
-      allPoints.push({ month: todayMonthStr, logged: lastHist.logged, invoiced: lastHist.invoiced, planned: lastHist.logged, isFuture: false });
-    }
-    allPoints = allPoints.concat(futurePoints);
-  }
-
-  const months = allPoints.map((p) => p.month);
-  const todayIdx = months.indexOf(todayMonthStr);
-
-  const fmt = (v: number | undefined) => v !== undefined ? fmtEur(v) : "";
-
-  return (
-    <ResponsiveContainer width="100%" height={200}>
-      <AreaChart data={allPoints} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-        <defs>
-          <linearGradient id="glInvoiced" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%"  stopColor="#8B5CF6" stopOpacity={0.5} />
-            <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0.05} />
-          </linearGradient>
-          <linearGradient id="glLogged" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%"  stopColor="#06B6D4" stopOpacity={0.35} />
-            <stop offset="95%" stopColor="#06B6D4" stopOpacity={0.02} />
-          </linearGradient>
-          <linearGradient id="glPlanned" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%"  stopColor="#64748B" stopOpacity={0.3} />
-            <stop offset="95%" stopColor="#64748B" stopOpacity={0.02} />
-          </linearGradient>
-        </defs>
-        <XAxis
-          dataKey="month"
-          tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
-          tickLine={false}
-          axisLine={false}
-          interval="preserveStartEnd"
-        />
-        <YAxis
-          tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
-          tickLine={false}
-          axisLine={false}
-          tickFormatter={(v) => fmtEur(v as number)}
-          width={52}
-        />
-        <Tooltip
-          contentStyle={{
-            background: "hsl(var(--popover))",
-            border: "1px solid hsl(var(--border))",
-            borderRadius: "8px",
-            fontSize: 12,
-            color: "hsl(var(--foreground))",
-          }}
-          formatter={(value, name) => [fmt(value as number), name]}
-          labelStyle={{ color: "hsl(var(--muted-foreground))", marginBottom: 4 }}
-        />
-        {/* Today reference line */}
-        {todayIdx >= 0 && (
-          <ReferenceLine
-            x={todayMonthStr}
-            stroke="hsl(var(--muted-foreground))"
-            strokeDasharray="4 2"
-            strokeOpacity={0.4}
-            label={{ value: "Today", position: "top", fill: "hsl(var(--muted-foreground))", fontSize: 9 }}
-          />
-        )}
-        {/* Budget ceiling reference */}
-        {budgetTotal && budgetTotal > 0 && (
-          <ReferenceLine
-            y={budgetTotal}
-            stroke="#EF4444"
-            strokeDasharray="4 2"
-            strokeOpacity={0.5}
-            label={{ value: "Budget", position: "right", fill: "#EF4444", fontSize: 9 }}
-          />
-        )}
-        {futurePoints.length > 0 && (
-          <Area
-            type="monotone"
-            dataKey="planned"
-            name="Planned"
-            stroke="#64748B"
-            strokeWidth={1.5}
-            strokeDasharray="5 3"
-            fill="url(#glPlanned)"
-            dot={false}
-            connectNulls
-          />
-        )}
-        <Area
-          type="monotone"
-          dataKey="logged"
-          name="Logged"
-          stroke="#06B6D4"
-          strokeWidth={1.5}
-          fill="url(#glLogged)"
-          dot={false}
-          connectNulls
-        />
-        <Area
-          type="monotone"
-          dataKey="invoiced"
-          name="Invoiced"
-          stroke="#8B5CF6"
-          strokeWidth={1.5}
-          fill="url(#glInvoiced)"
-          dot={false}
-          connectNulls
-        />
-      </AreaChart>
-    </ResponsiveContainer>
   );
 }
 
@@ -929,8 +569,7 @@ export default function ProjectStatusDetail() {
     );
   }
 
-  const { project, history, monthlyData, futureBookings } = data;
-  const futureProjections = computeFutureProjections(futureBookings ?? [], new Date());
+  const { project, history } = data;
   const latestEntry = history[0] ?? null;
   const dot = resolveColor(project.color, project.id);
 
@@ -1005,15 +644,6 @@ export default function ProjectStatusDetail() {
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            onClick={() => navigate(`/billing?project=${project.id}`)}
-          >
-            <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.5} />
-            Open in Billing
-          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -1102,59 +732,15 @@ export default function ProjectStatusDetail() {
         )}
       </div>
 
-      {/* Two-column layout: Budget + Next Steps */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-        {/* Budget breakdown */}
-        <div className="rounded-xl border border-white/8 bg-white/2 p-5">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-4">Budget Breakdown</h2>
-          <BudgetBreakdown
-            budgetTotal={project.budgetTotal ?? null}
-            loggedTotal={project.loggedTotal ?? null}
-            invoicedTotal={project.invoicedTotal ?? null}
-            budgetAlert={project.budgetAlert ?? false}
-          />
-        </div>
-
-        {/* Next steps */}
-        <div className="rounded-xl border border-white/8 bg-white/2 p-5">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-4">Next Steps</h2>
-          <NextStepsChecklist
-            projectId={projectId}
-            initialSteps={project.nextSteps as NextStep[] | null ?? null}
-            onSaved={invalidate}
-          />
-        </div>
+      {/* Next Steps */}
+      <div className="rounded-xl border border-white/8 bg-white/2 p-5 mb-4">
+        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-4">Next Steps</h2>
+        <NextStepsChecklist
+          projectId={projectId}
+          initialSteps={project.nextSteps as NextStep[] | null ?? null}
+          onSaved={invalidate}
+        />
       </div>
-
-      {/* Burn-up chart */}
-      {(monthlyData.length > 0 || futureProjections.length > 0) && (
-        <div className="rounded-xl border border-white/8 bg-white/2 p-5 mb-4">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Revenue Over Time</h2>
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block h-2 w-4 rounded-sm bg-violet-500/70" />
-                Invoiced
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block h-2 w-4 rounded-sm bg-cyan-500/50" />
-                Logged
-              </span>
-              {futureProjections.length > 0 && (
-                <span className="flex items-center gap-1.5">
-                  <span className="inline-block h-2 w-4 rounded-sm bg-slate-500/50 border-t border-dashed border-slate-400" />
-                  Planned
-                </span>
-              )}
-            </div>
-          </div>
-          <BurnUpChart
-            monthlyData={monthlyData}
-            futureProjections={futureProjections}
-            budgetTotal={project.budgetTotal ?? null}
-          />
-        </div>
-      )}
 
       {/* History */}
       <div className="rounded-xl border border-white/8 bg-white/2 p-5">

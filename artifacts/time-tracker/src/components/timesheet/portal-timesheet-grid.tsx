@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Save, CheckCircle2, Loader2, Plus, ChevronRight, ChevronDown, AlertCircle, MessageSquare, TrendingUp, Clock } from "lucide-react";
+import { Save, CheckCircle2, Loader2, Plus, ChevronRight, ChevronDown, AlertCircle, MessageSquare, TrendingUp, Clock, Trash2 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface PortalRole {
@@ -234,6 +234,198 @@ function AddPortalRowDialog({
   );
 }
 
+// ── Add-time-off (absence) dialog ─────────────────────────────────────────────
+const ABSENCE_TYPES: { value: string; label: string }[] = [
+  { value: "vacation", label: "Vacation" },
+  { value: "sick", label: "Sick" },
+  { value: "unpaid_leave", label: "Unpaid leave" },
+  { value: "other", label: "Other" },
+];
+
+function AddTimeOffDialog({
+  open,
+  onClose,
+  employeeId,
+  defaultDate,
+  onChanged,
+}: {
+  open: boolean;
+  onClose: () => void;
+  employeeId: number;
+  defaultDate: string;
+  onChanged: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [vacationType, setVacationType] = useState("vacation");
+  const [startDate, setStartDate] = useState(defaultDate);
+  const [endDate, setEndDate] = useState(defaultDate);
+  const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [removingId, setRemovingId] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const vacationsKey = ["employee-vacations", employeeId];
+  const { data: vacations = [], isLoading: loadingList } = useQuery<VacationEntry[]>({
+    queryKey: vacationsKey,
+    queryFn: async () => {
+      const res = await fetch(apiUrl(`/api/vacations?employeeId=${employeeId}`), { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: open,
+  });
+
+  useEffect(() => {
+    if (open) {
+      setVacationType("vacation");
+      setStartDate(defaultDate);
+      setEndDate(defaultDate);
+      setNote("");
+      setError(null);
+      setSubmitting(false);
+      setRemovingId(null);
+    }
+  }, [open, defaultDate]);
+
+  function refresh() {
+    queryClient.invalidateQueries({ queryKey: vacationsKey });
+    onChanged();
+  }
+
+  async function submit() {
+    if (!startDate || !endDate) { setError("Pick a start and end date."); return; }
+    if (endDate < startDate) { setError("End date can't be before start date."); return; }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch(apiUrl("/api/vacations"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ employeeId, startDate, endDate, vacationType, note: note.trim() || null }),
+      });
+      if (!res.ok) {
+        const b = await res.json().catch(() => ({}));
+        throw new Error(b.error ?? "Failed to submit time off.");
+      }
+      setNote("");
+      refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to submit time off.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function remove(id: number) {
+    setRemovingId(id);
+    setError(null);
+    try {
+      const res = await fetch(apiUrl(`/api/vacations/${id}`), { method: "DELETE", credentials: "include" });
+      if (!res.ok && res.status !== 204) throw new Error("Failed to remove time off.");
+      refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to remove time off.");
+    } finally {
+      setRemovingId(null);
+    }
+  }
+
+  const typeLabel = (t: string) => ABSENCE_TYPES.find((x) => x.value === t)?.label ?? t;
+  const fmtRange = (s: string, e: string) =>
+    s === e
+      ? format(new Date(`${s}T00:00:00`), "MMM d, yyyy")
+      : `${format(new Date(`${s}T00:00:00`), "MMM d")} – ${format(new Date(`${e}T00:00:00`), "MMM d, yyyy")}`;
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Time off</DialogTitle>
+        </DialogHeader>
+
+        {/* Existing time off */}
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-muted-foreground">Your time off</p>
+          {loadingList ? (
+            <p className="text-sm text-muted-foreground py-2">Loading…</p>
+          ) : vacations.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-2">No time off booked yet.</p>
+          ) : (
+            <ul className="space-y-1 max-h-40 overflow-auto">
+              {vacations.map((v) => (
+                <li key={v.id} className="flex items-center justify-between gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm">
+                  <span className="min-w-0 truncate">
+                    <span className="font-medium">{typeLabel(v.vacationType)}</span>
+                    <span className="text-muted-foreground"> · {fmtRange(v.startDate, v.endDate)}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => remove(v.id)}
+                    disabled={removingId === v.id}
+                    className="shrink-0 rounded p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                    aria-label="Remove time off"
+                  >
+                    {removingId === v.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="border-t border-border my-1" />
+
+        {/* Add time off */}
+        <div className="space-y-3">
+          <p className="text-xs font-medium text-muted-foreground">Add time off</p>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Type</label>
+            <Select value={vacationType} onValueChange={setVacationType}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {ABSENCE_TYPES.map((t) => (
+                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">From</label>
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setStartDate(v);
+                  if (endDate < v) setEndDate(v);
+                }}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">To</label>
+              <Input type="date" value={endDate} min={startDate} onChange={(e) => setEndDate(e.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Note (optional)</label>
+            <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="e.g. doctor's appointment" />
+          </div>
+          {error && <p className="text-xs text-destructive">{error}</p>}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>Done</Button>
+          <Button onClick={submit} disabled={submitting}>
+            {submitting ? (<><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Adding…</>) : "Add time off"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 interface PortalTimesheetGridProps {
   employeeId: number;
@@ -273,6 +465,7 @@ export function PortalTimesheetGrid({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [addRowOpen, setAddRowOpen] = useState(false);
+  const [timeOffOpen, setTimeOffOpen] = useState(false);
   const [collapsedProjects, setCollapsedProjects] = useState<Set<number>>(new Set());
 
   const weekDays = useMemo(
@@ -640,6 +833,9 @@ export function PortalTimesheetGrid({
           <div className={`px-3 py-1.5 rounded-md text-sm font-medium border ${isOverCapacity ? "bg-destructive/10 text-destructive border-destructive/20" : "bg-muted/50 border-border"}`}>
             {grandTotal.toFixed(1)} / {capacityHours} hrs
           </div>
+          <Button variant="outline" size="sm" onClick={() => setTimeOffOpen(true)}>
+            <Plus className="h-4 w-4 mr-1.5" /> Time off
+          </Button>
           <Button
             onClick={handleSave}
             disabled={!isDirty || saveStatus === "saving"}
@@ -1046,6 +1242,14 @@ export function PortalTimesheetGrid({
         availableProjects={availableProjects}
         existingRows={rows}
         onAdd={handleAddRow}
+      />
+
+      <AddTimeOffDialog
+        open={timeOffOpen}
+        onClose={() => setTimeOffOpen(false)}
+        employeeId={employeeId}
+        defaultDate={startDateStr}
+        onChanged={() => queryClient.invalidateQueries({ queryKey: ["portal-timesheet", employeeId] })}
       />
     </div>
   );
